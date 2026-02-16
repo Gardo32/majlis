@@ -19,6 +19,10 @@ export default function AdminDashboard() {
   const [message, setMessage] = useState("");
   const [error, setError] = useState("");
 
+  // Settings state
+  const [ramadanStartDate, setRamadanStartDate] = useState("");
+  const [settingsLoading, setSettingsLoading] = useState(false);
+
   const [newUser, setNewUser] = useState({
     name: "",
     email: "",
@@ -31,7 +35,21 @@ export default function AdminDashboard() {
 
   useEffect(() => {
     fetchUsers();
+    fetchSettings();
   }, []);
+
+  const fetchSettings = async () => {
+    try {
+      const res = await fetch("/api/settings");
+      if (res.ok) {
+        const data = await res.json();
+        const date = new Date(data.ramadanStartDate);
+        setRamadanStartDate(date.toISOString().split('T')[0]);
+      }
+    } catch (err) {
+      console.error("Failed to load settings:", err);
+    }
+  };
 
   const fetchUsers = async () => {
     try {
@@ -48,7 +66,61 @@ export default function AdminDashboard() {
       setLoading(false);
     }
   };
+  const handleUpdateSettings = async (e: React.FormEvent) => {
+    e.preventDefault();
+    setMessage("");
+    setError("");
+    setSettingsLoading(true);
 
+    try {
+      const res = await fetch("/api/settings", {
+        method: "PUT",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ ramadanStartDate: new Date(ramadanStartDate).toISOString() }),
+      });
+
+      if (res.ok) {
+        setMessage("Ramadan start date updated successfully");
+      } else {
+        const data = await res.json();
+        setError(data.error || "Failed to update settings");
+      }
+    } catch (err) {
+      setError("Failed to update settings");
+    } finally {
+      setSettingsLoading(false);
+    }
+  };
+
+  const handleRegenerateCalendar = async () => {
+    if (!confirm("This will delete all existing schedules and generate a new 30-day calendar. Continue?")) {
+      return;
+    }
+
+    setMessage("");
+    setError("");
+    setSettingsLoading(true);
+
+    try {
+      const res = await fetch("/api/schedules", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ regenerate: true }),
+      });
+
+      if (res.ok) {
+        const data = await res.json();
+        setMessage(`Calendar regenerated successfully! Created ${data.count} schedules.`);
+      } else {
+        const data = await res.json();
+        setError(data.error || "Failed to regenerate calendar");
+      }
+    } catch (err) {
+      setError("Failed to regenerate calendar");
+    } finally {
+      setSettingsLoading(false);
+    }
+  };
   const handleCreateUser = async (e: React.FormEvent) => {
     e.preventDefault();
     setMessage("");
@@ -157,6 +229,49 @@ export default function AdminDashboard() {
           ⚠️ {error}
         </div>
       )}
+
+      {/* Ramadan Settings */}
+      <WindowBox title="📅 Ramadan Calendar Settings">
+        <form onSubmit={handleUpdateSettings} className="space-y-4">
+          <div>
+            <label className="block font-bold mb-1">Ramadan Start Date:</label>
+            <input
+              type="date"
+              value={ramadanStartDate}
+              onChange={(e) => setRamadanStartDate(e.target.value)}
+              className="win-input"
+              required
+            />
+            <p className="text-sm text-gray-600 dark:text-gray-400 mt-1">
+              The first day of Ramadan. Calendar automatically generates 30 days from this date.
+            </p>
+          </div>
+
+          <div className="flex gap-2">
+            <button 
+              type="submit" 
+              className="win-button"
+              disabled={settingsLoading}
+            >
+              💾 Save Start Date
+            </button>
+
+            <button
+              type="button"
+              onClick={handleRegenerateCalendar}
+              className="win-button bg-orange-200 hover:bg-orange-300 dark:bg-orange-800"
+              disabled={settingsLoading}
+            >
+              🔄 Regenerate Full Calendar (30 Days)
+            </button>
+          </div>
+
+          <div className="win-box bg-yellow-50 dark:bg-yellow-950 p-3 text-sm text-yellow-800 dark:text-yellow-200">
+            <strong>⚠️ Warning:</strong> Regenerating the calendar will delete all existing schedules
+            and create a new 30-day schedule with 2 juz per day, completing the Quran twice.
+          </div>
+        </form>
+      </WindowBox>
 
       {/* Create New User */}
       <WindowBox title="➕ Create New User">

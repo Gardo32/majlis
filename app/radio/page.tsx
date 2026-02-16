@@ -5,7 +5,7 @@ import { LiveIndicator } from "@/components/LiveIndicator";
 
 async function getMajlisStatus() {
   let status = await prisma.majlisStatus.findFirst();
-  
+
   if (!status) {
     status = await prisma.majlisStatus.create({
       data: {
@@ -13,26 +13,32 @@ async function getMajlisStatus() {
         currentSurahEnglish: "Al-Fatiha",
         currentJuz: 1,
         currentPage: 1,
+        currentAyah: 1,
         completionPercentage: 0,
         radioStreamUrl: "",
         isLive: false,
       },
     });
   }
-  
+
   return status;
 }
 
 export default async function RadioPage() {
   const status = await getMajlisStatus();
+  const hasYouTube = status.youtubeVideoId && status.youtubeVideoId.trim() !== "";
 
   return (
     <div className="space-y-4">
-      <WindowBox title="📻 Radio Stream - Quran Majlis Live">
+      <WindowBox title={hasYouTube ? "📺 Watch Live - Quran Majlis" : "📻 Radio Stream - Quran Majlis Live"}>
         <div className="text-center space-y-2">
-          <p>Listen to the live Quran recitation from Majlis Haji Ebrahim Aldaqaq</p>
-          <p className="text-sm text-gray-600">
-            Note: Radio streaming is an optional feature. The stream may not always be available.
+          <p>
+            {hasYouTube 
+              ? "Watch the live Quran recitation from Majlis Haji Ebrahim Aldaqaq"
+              : "Listen to the live Quran recitation from Majlis Haji Ebrahim Aldaqaq"}
+          </p>
+          <p className="text-sm text-muted-foreground">
+            Note: Streaming is an optional feature. The stream may not always be available.
           </p>
         </div>
       </WindowBox>
@@ -42,7 +48,7 @@ export default async function RadioPage() {
         <div className="flex items-center justify-center py-4">
           <div className="text-center space-y-2">
             <LiveIndicator isLive={status.isLive} />
-            <div className="text-sm text-gray-600">
+            <div className="text-sm text-muted-foreground">
               {status.isLive
                 ? "The stream is currently live"
                 : "The stream is currently offline"}
@@ -51,20 +57,14 @@ export default async function RadioPage() {
         </div>
       </WindowBox>
 
-      {/* Radio Player */}
-      <WindowBox title="🎵 Audio Player">
+      {/* Video/Audio Player */}
+      <WindowBox title={hasYouTube ? "📺 Live Video" : "🎵 Audio Player"}>
         <div className="space-y-4">
           <RadioPlayer
-            streamUrl={status.radioStreamUrl}
+            streamUrl={status.radioStreamUrl || ""}
+            youtubeVideoId={status.youtubeVideoId}
             isLive={status.isLive}
           />
-
-          {status.radioStreamUrl && (
-            <div className="text-sm text-gray-600 border border-black p-2 bg-gray-50">
-              <strong>Stream URL:</strong>{" "}
-              <code className="bg-gray-200 px-1">{status.radioStreamUrl}</code>
-            </div>
-          )}
         </div>
       </WindowBox>
 
@@ -78,7 +78,7 @@ export default async function RadioPage() {
             <div className="font-surah-english text-xl">
               {status.currentSurahEnglish}
             </div>
-            <div className="text-sm text-gray-600">
+            <div className="text-sm text-muted-foreground">
               Juz {status.currentJuz} - Page {status.currentPage}
             </div>
           </div>
@@ -88,16 +88,16 @@ export default async function RadioPage() {
       {/* Instructions */}
       <WindowBox title="ℹ️ How to Listen">
         <div className="space-y-3 text-sm">
-          <div className="border border-black p-3 bg-gray-50">
+          <div className="border border-border p-3 bg-card text-card-foreground">
             <strong>Step 1:</strong> Check the stream status above
           </div>
-          <div className="border border-black p-3 bg-gray-50">
+          <div className="border border-border p-3 bg-muted text-muted-foreground">
             <strong>Step 2:</strong> If the stream is live, click the Play button
           </div>
-          <div className="border border-black p-3 bg-gray-50">
+          <div className="border border-border p-3 bg-card text-card-foreground">
             <strong>Step 3:</strong> Adjust the volume using the slider
           </div>
-          <div className="border border-black p-3 bg-gray-50">
+          <div className="border border-border p-3 bg-muted text-muted-foreground">
             <strong>Step 4:</strong> Click Stop to pause the stream
           </div>
         </div>
@@ -105,7 +105,7 @@ export default async function RadioPage() {
 
       {/* Technical Info */}
       <WindowBox title="⚙️ Technical Information">
-        <div className="text-sm text-gray-600 space-y-2">
+        <div className="text-sm text-muted-foreground space-y-2">
           <p>
             <strong>Stream Format:</strong> Icecast/MP3
           </p>

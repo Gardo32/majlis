@@ -58,19 +58,28 @@ export async function PUT(
       juzStart,
       juzEnd,
       time,
+      isKhatma,
+      exceptionNote,
+      actualJuzStart,
+      actualJuzEnd,
     } = body;
+
+    const updateData: any = {};
+    if (date !== undefined) updateData.date = new Date(date);
+    if (ramadanDayNumber !== undefined) updateData.ramadanDayNumber = ramadanDayNumber;
+    if (surahArabic !== undefined) updateData.surahArabic = surahArabic;
+    if (surahEnglish !== undefined) updateData.surahEnglish = surahEnglish;
+    if (juzStart !== undefined) updateData.juzStart = juzStart;
+    if (juzEnd !== undefined) updateData.juzEnd = juzEnd;
+    if (time !== undefined) updateData.time = time;
+    if (isKhatma !== undefined) updateData.isKhatma = isKhatma;
+    if (exceptionNote !== undefined) updateData.exceptionNote = exceptionNote;
+    if (actualJuzStart !== undefined) updateData.actualJuzStart = actualJuzStart;
+    if (actualJuzEnd !== undefined) updateData.actualJuzEnd = actualJuzEnd;
 
     const schedule = await prisma.schedule.update({
       where: { id },
-      data: {
-        date: date ? new Date(date) : undefined,
-        ramadanDayNumber,
-        surahArabic,
-        surahEnglish,
-        juzStart,
-        juzEnd,
-        time,
-      },
+      data: updateData,
     });
 
     return NextResponse.json(schedule);

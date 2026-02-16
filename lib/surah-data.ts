@@ -116,6 +116,40 @@ export const SURAHS = [
   { number: 114, arabic: "الناس", english: "An-Nas", juz: 30, pages: 1 },
 ];
 
+// Juz names with Arabic and English transliterations
+export const JUZ_NAMES = [
+  { number: 1, arabic: "الم", english: "Alif Lam Mim" },
+  { number: 2, arabic: "سَيَقُولُ", english: "Sayaqul" },
+  { number: 3, arabic: "تِلْكَ الرُّسُلُ", english: "Tilkal Rusul" },
+  { number: 4, arabic: "لَنْ تَنَالُوا", english: "Lan Tana Lu" },
+  { number: 5, arabic: "وَالْمُحْصَنَاتُ", english: "Wal Muhsanat" },
+  { number: 6, arabic: "لَا يُحِبُّ اللَّهُ", english: "La Yuhibbullah" },
+  { number: 7, arabic: "وَإِذَا سَمِعُوا", english: "Wa Idha Sami'u" },
+  { number: 8, arabic: "وَلَوْ أَنَّنَا", english: "Wa Law Annana" },
+  { number: 9, arabic: "قَالَ الْمَلَأُ", english: "Qalal Mala" },
+  { number: 10, arabic: "وَاعْلَمُوا", english: "Wa'lamu" },
+  { number: 11, arabic: "يَعْتَذِرُونَ", english: "Ya'tadhirun" },
+  { number: 12, arabic: "وَمَا مِنْ دَابَّةٍ", english: "Wa Ma Min Dabbah" },
+  { number: 13, arabic: "وَمَا أُبَرِّئُ", english: "Wa Ma Ubarri" },
+  { number: 14, arabic: "رُبَمَا", english: "Rubama" },
+  { number: 15, arabic: "سُبْحَانَ الَّذِي", english: "Subhanallazi" },
+  { number: 16, arabic: "قَالَ أَلَمْ", english: "Qala Alam" },
+  { number: 17, arabic: "اقْتَرَبَ لِلنَّاسِ", english: "Iqtaraba Linnas" },
+  { number: 18, arabic: "قَدْ أَفْلَحَ", english: "Qad Aflaha" },
+  { number: 19, arabic: "وَقَالَ الَّذِينَ", english: "Wa Qalallazina" },
+  { number: 20, arabic: "أَمَّنْ خَلَقَ", english: "Amman Khalaqa" },
+  { number: 21, arabic: "اتْلُ مَا أُوحِيَ", english: "Utlu Ma Uhiya" },
+  { number: 22, arabic: "وَمَنْ يَقْنُتْ", english: "Wa Man Yaqnut" },
+  { number: 23, arabic: "وَمَا لِيَ", english: "Wa Mali" },
+  { number: 24, arabic: "فَمَنْ أَظْلَمُ", english: "Faman Azlam" },
+  { number: 25, arabic: "إِلَيْهِ يُرَدُّ", english: "Ilayhi Yuraddu" },
+  { number: 26, arabic: "حم", english: "Ha Mim" },
+  { number: 27, arabic: "قَالَ فَمَا خَطْبُكُمْ", english: "Qala Fama Khatbukum" },
+  { number: 28, arabic: "قَدْ سَمِعَ اللَّهُ", english: "Qad Sami Allahu" },
+  { number: 29, arabic: "تَبَارَكَ الَّذِي", english: "Tabarakallazi" },
+  { number: 30, arabic: "عَمَّ يَتَسَاءَلُونَ", english: "Amma Yatasaalun" },
+];
+
 export function getSurahByNumber(number: number) {
   return SURAHS.find((s) => s.number === number);
 }
@@ -134,4 +168,46 @@ export function getJuzRange(surahNumber: number): { start: number; end: number }
   
   // Simplified - in reality, some surahs span multiple juz
   return { start: surah.juz, end: surah.juz };
+}
+
+// Get juz name by number
+export function getJuzName(juzNumber: number): { arabic: string; english: string } | null {
+  return JUZ_NAMES.find((j) => j.number === juzNumber) || null;
+}
+
+// Get all surahs that appear in a juz range
+export function getSurahsInJuzRange(juzStart: number, juzEnd: number): Array<{
+  number: number;
+  arabic: string;
+  english: string;
+  juz: number;
+}> {
+  const surahs = SURAHS.filter(
+    (s) => s.juz >= juzStart && s.juz <= juzEnd
+  );
+  return surahs;
+}
+
+// Get primary surah for display (first surah in the juz range)
+export function getPrimarySurahForJuzRange(juzStart: number, juzEnd: number): {
+  arabic: string;
+  english: string;
+} {
+  const surahs = getSurahsInJuzRange(juzStart, juzEnd);
+  if (surahs.length === 0) {
+    return { arabic: "القرآن الكريم", english: "Al-Quran" };
+  }
+  
+  // If multiple surahs, show the range or first one
+  if (surahs.length === 1) {
+    return { arabic: surahs[0].arabic, english: surahs[0].english };
+  }
+  
+  // For multiple surahs, show first to last
+  const first = surahs[0];
+  const last = surahs[surahs.length - 1];
+  return {
+    arabic: `${first.arabic} - ${last.arabic}`,
+    english: `${first.english} - ${last.english}`,
+  };
 }

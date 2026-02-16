@@ -1,9 +1,8 @@
 "use client";
 
 import { useState, useEffect } from "react";
-import { useRouter } from "next/navigation";
 import { WindowBox } from "@/components/WindowBox";
-import { SURAHS } from "@/lib/surah-data";
+import { getJuzName } from "@/lib/surah-data";
 
 interface Schedule {
   id: string;
@@ -14,45 +13,34 @@ interface Schedule {
   juzStart: number;
   juzEnd: number;
   time: string;
+  isKhatma: boolean;
+  exceptionNote: string | null;
+  actualJuzStart: number | null;
+  actualJuzEnd: number | null;
 }
 
 interface MajlisStatus {
-  currentSurahArabic: string;
-  currentSurahEnglish: string;
   currentJuz: number;
-  currentPage: number;
-  completionPercentage: number;
+  currentAyah: number;
 }
 
 export default function ControllerDashboard() {
-  const router = useRouter();
-  const [schedules, setSchedules] = useState<Schedule[]>([]);
+  const [todaySchedule, setTodaySchedule] = useState<Schedule | null>(null);
+  const [allSchedules, setAllSchedules] = useState<Schedule[]>([]);
   const [status, setStatus] = useState<MajlisStatus | null>(null);
   const [loading, setLoading] = useState(true);
   const [message, setMessage] = useState("");
   const [error, setError] = useState("");
 
-  // Form state for new schedule
-  const [newSchedule, setNewSchedule] = useState({
-    date: "",
-    ramadanDayNumber: 1,
-    surahNumber: 1,
-    juzStart: 1,
-    juzEnd: 1,
-    time: "20:00",
+  // Progress form
+  const [progressForm, setProgressForm] = useState({
+    stoppedAtJuz: 1,
+    stoppedAtAyah: 1,
   });
 
-  // Edit state
-  const [editingId, setEditingId] = useState<string | null>(null);
-  const [editSchedule, setEditSchedule] = useState<Schedule | null>(null);
-
-  // Status form state
-  const [statusForm, setStatusForm] = useState({
-    surahNumber: 1,
-    currentJuz: 1,
-    currentPage: 1,
-    completionPercentage: 0,
-  });
+  // Exception form
+  const [showExceptionModal, setShowExceptionModal] = useState(false);
+  const [exceptionNote, setExceptionNote] = useState("");
 
   useEffect(() => {
     fetchData();
@@ -66,20 +54,29 @@ export default function ControllerDashboard() {
       ]);
 
       if (schedulesRes.ok) {
-        const data = await schedulesRes.json();
-        setSchedules(data);
+        const schedules = await schedulesRes.json();
+        setAllSchedules(schedules);
+
+        // Find today's schedule
+        const today = new Date();
+        today.setHours(0, 0, 0, 0);
+        const todayStr = today.toISOString().split("T")[0];
+        
+        const todayScheduleItem = schedules.find((s: Schedule) => {
+          const scheduleDate = new Date(s.date);
+          scheduleDate.setHours(0, 0, 0, 0);
+          return scheduleDate.toISOString().split("T")[0] === todayStr;
+        });
+
+        setTodaySchedule(todayScheduleItem || null);
       }
 
       if (statusRes.ok) {
         const data = await statusRes.json();
         setStatus(data);
-        // Find surah number from name
-        const surah = SURAHS.find((s) => s.english === data.currentSurahEnglish);
-        setStatusForm({
-          surahNumber: surah?.number || 1,
-          currentJuz: data.currentJuz,
-          currentPage: data.currentPage,
-          completionPercentage: data.completionPercentage,
+        setProgressForm({
+          stoppedAtJuz: data.currentJuz || 1,
+          stoppedAtAyah: data.currentAyah || 1,
         });
       }
     } catch (err) {
@@ -89,67 +86,50 @@ export default function ControllerDashboard() {
     }
   };
 
-  const handleCreateSchedule = async (e: React.FormEvent) => {
+  const handleUpdateProgress = async (e: React.FormEvent) => {
     e.preventDefault();
     setMessage("");
     setError("");
 
-    const surah = SURAHS.find((s) => s.number === newSchedule.surahNumber);
-    if (!surah) {
-      setError("Invalid surah selected");
-      return;
-    }
-
     try {
-      const res = await fetch("/api/schedules", {
-        method: "POST",
+      const res = await fetch("/api/status", {
+        method: "PUT",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
-          date: newSchedule.date,
-          ramadanDayNumber: newSchedule.ramadanDayNumber,
-          surahArabic: surah.arabic,
-          surahEnglish: surah.english,
-          juzStart: newSchedule.juzStart,
-          juzEnd: newSchedule.juzEnd,
-          time: newSchedule.time,
+          currentJuz: progressForm.stoppedAtJuz,
+          currentAyah: progressForm.stoppedAtAyah,
         }),
       });
 
       if (res.ok) {
-        setMessage("Schedule created successfully");
+        setMessage("Progress recorded successfully");
         fetchData();
-        setNewSchedule({
-          date: "",
-          ramadanDayNumber: newSchedule.ramadanDayNumber + 1,
-          surahNumber: 1,
-          juzStart: 1,
-          juzEnd: 1,
-          time: "20:00",
-        });
       } else {
         const data = await res.json();
-        setError(data.error || "Failed to create schedule");
+        setError(data.error || "Failed to update progress");
       }
     } catch (err) {
-      setError("Failed to create schedule");
+      setError("Failed to update progress");
     }
   };
 
-  const handleUpdateSchedule = async (e: React.FormEvent) => {
-    e.preventDefault();
-    if (!editingId || !editSchedule) return;
+  const handleToggleKhatma = async () => {
+    if (!todaySchedule) return;
+    
+    setMessage("");
+    setError("");
 
     try {
-      const res = await fetch(`/api/schedules/${editingId}`, {
+      const res = await fetch(`/api/schedules/${todaySchedule.id}`, {
         method: "PUT",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify(editSchedule),
+        body: JSON.stringify({
+          isKhatma: !todaySchedule.isKhatma,
+        }),
       });
 
       if (res.ok) {
-        setMessage("Schedule updated successfully");
-        setEditingId(null);
-        setEditSchedule(null);
+        setMessage(`Day ${todaySchedule.isKhatma ? "unmarked" : "marked"} as الختمة`);
         fetchData();
       } else {
         const data = await res.json();
@@ -160,58 +140,31 @@ export default function ControllerDashboard() {
     }
   };
 
-  const handleDeleteSchedule = async (id: string) => {
-    if (!confirm("Are you sure you want to delete this schedule?")) return;
-
-    try {
-      const res = await fetch(`/api/schedules/${id}`, {
-        method: "DELETE",
-      });
-
-      if (res.ok) {
-        setMessage("Schedule deleted successfully");
-        fetchData();
-      } else {
-        setError("Failed to delete schedule");
-      }
-    } catch (err) {
-      setError("Failed to delete schedule");
-    }
-  };
-
-  const handleUpdateStatus = async (e: React.FormEvent) => {
-    e.preventDefault();
+  const handleSaveException = async () => {
+    if (!todaySchedule) return;
+    
     setMessage("");
     setError("");
 
-    const surah = SURAHS.find((s) => s.number === statusForm.surahNumber);
-    if (!surah) {
-      setError("Invalid surah selected");
-      return;
-    }
-
     try {
-      const res = await fetch("/api/status", {
+      const res = await fetch(`/api/schedules/${todaySchedule.id}`, {
         method: "PUT",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
-          currentSurahArabic: surah.arabic,
-          currentSurahEnglish: surah.english,
-          currentJuz: statusForm.currentJuz,
-          currentPage: statusForm.currentPage,
-          completionPercentage: statusForm.completionPercentage,
+          exceptionNote: exceptionNote || null,
         }),
       });
 
       if (res.ok) {
-        setMessage("Progress updated successfully");
+        setMessage("Exception note saved");
+        setShowExceptionModal(false);
         fetchData();
       } else {
         const data = await res.json();
-        setError(data.error || "Failed to update progress");
+        setError(data.error || "Failed to save exception");
       }
     } catch (err) {
-      setError("Failed to update progress");
+      setError("Failed to save exception");
     }
   };
 
@@ -225,207 +178,143 @@ export default function ControllerDashboard() {
 
   return (
     <div className="space-y-4">
-      <WindowBox title="📅 Controller Dashboard - Calendar Management">
-        <p className="text-sm text-gray-600">
-          Create and manage the Ramadan calendar schedule. Update current
-          reading progress.
+      <WindowBox title="📅 Controller Dashboard">
+        <p className="text-sm text-gray-600 dark:text-gray-400 mb-4">
+          Record daily progress as the reading happens. The calendar automatically 
+          advances 2 juz per day starting from Ramadan day 1.
         </p>
+
+        {message && (
+          <div className="win-box bg-green-100 dark:bg-green-900 text-green-800 dark:text-green-100 p-2 mb-4">
+            {message}
+          </div>
+        )}
+
+        {error && (
+          <div className="win-box bg-red-100 dark:bg-red-900 text-red-800 dark:text-red-100 p-2 mb-4">
+            {error}
+          </div>
+        )}
       </WindowBox>
 
-      {message && (
-        <div className="border-2 border-green-600 bg-green-100 p-3 text-green-800">
-          ✓ {message}
-        </div>
-      )}
-
-      {error && (
-        <div className="border-2 border-red-600 bg-red-100 p-3 text-red-800">
-          ⚠️ {error}
-        </div>
-      )}
-
-      {/* Create New Schedule */}
-      <WindowBox title="➕ Create New Schedule Entry">
-        <form onSubmit={handleCreateSchedule} className="space-y-4">
-          <div className="grid grid-cols-2 md:grid-cols-3 gap-4">
-            <div>
-              <label className="block font-bold mb-1">Date:</label>
-              <input
-                type="date"
-                value={newSchedule.date}
-                onChange={(e) =>
-                  setNewSchedule({ ...newSchedule, date: e.target.value })
-                }
-                className="win-input w-full"
-                required
-              />
+      {/* Today's Schedule */}
+      <WindowBox title="📖 Today's Schedule">
+        {todaySchedule ? (
+          <div className="space-y-3">
+            <div className="grid grid-cols-2 gap-4">
+              <div>
+                <span className="font-bold">Ramadan Day:</span> {todaySchedule.ramadanDayNumber}
+              </div>
+              <div>
+                <span className="font-bold">Date:</span>{" "}
+                {new Date(todaySchedule.date).toLocaleDateString("en-US", {
+                  weekday: "long",
+                  year: "numeric",
+                  month: "long",
+                  day: "numeric",
+                })}
+              </div>
+              <div>
+                <span className="font-bold">Expected Juz:</span> {todaySchedule.juzStart}-{todaySchedule.juzEnd}
+                <div className="text-sm text-gray-600 dark:text-gray-400">
+                  {getJuzName(todaySchedule.juzStart)?.english} - {getJuzName(todaySchedule.juzEnd)?.english}
+                </div>
+              </div>
+              <div>
+                <span className="font-bold">Time:</span> {todaySchedule.time}
+              </div>
+              <div className="col-span-2">
+                <span className="font-bold">Surahs:</span>{" "}
+                <span className="font-quran-arabic text-xl">{todaySchedule.surahArabic}</span>
+                <br />
+                <span className="text-sm">{todaySchedule.surahEnglish}</span>
+              </div>
             </div>
 
-            <div>
-              <label className="block font-bold mb-1">Ramadan Day:</label>
-              <input
-                type="number"
-                min="1"
-                max="30"
-                value={newSchedule.ramadanDayNumber}
-                onChange={(e) =>
-                  setNewSchedule({
-                    ...newSchedule,
-                    ramadanDayNumber: Number(e.target.value),
-                  })
-                }
-                className="win-input w-full"
-                required
-              />
-            </div>
+            {todaySchedule.isKhatma && (
+              <div className="win-box bg-gradient-to-r from-yellow-400 to-yellow-600 text-black p-3">
+                <span className="text-2xl">⭐</span> <strong>الختمة</strong> - Completion Day
+              </div>
+            )}
 
-            <div>
-              <label className="block font-bold mb-1">Surah:</label>
-              <select
-                value={newSchedule.surahNumber}
-                onChange={(e) =>
-                  setNewSchedule({
-                    ...newSchedule,
-                    surahNumber: Number(e.target.value),
-                  })
-                }
-                className="win-select w-full"
-                required
+            {todaySchedule.exceptionNote && (
+              <div className="win-box bg-orange-100 dark:bg-orange-900 p-3">
+                <strong>⚠️ Exception:</strong> {todaySchedule.exceptionNote}
+              </div>
+            )}
+
+            {todaySchedule.actualJuzStart && (
+              <div className="win-box bg-blue-100 dark:bg-blue-900 p-3">
+                <strong>Actual Progress:</strong> Juz {todaySchedule.actualJuzStart}
+                {todaySchedule.actualJuzEnd && todaySchedule.actualJuzEnd !== todaySchedule.actualJuzStart
+                  ? `-${todaySchedule.actualJuzEnd}`
+                  : ""}
+              </div>
+            )}
+
+            <div className="flex gap-2 flex-wrap">
+              <button
+                onClick={handleToggleKhatma}
+                className={`win-button ${todaySchedule.isKhatma ? "bg-yellow-500" : ""}`}
               >
-                {SURAHS.map((surah) => (
-                  <option key={surah.number} value={surah.number}>
-                    {surah.number}. {surah.english} - {surah.arabic}
-                  </option>
-                ))}
-              </select>
-            </div>
-
-            <div>
-              <label className="block font-bold mb-1">Juz Start:</label>
-              <input
-                type="number"
-                min="1"
-                max="30"
-                value={newSchedule.juzStart}
-                onChange={(e) =>
-                  setNewSchedule({
-                    ...newSchedule,
-                    juzStart: Number(e.target.value),
-                  })
-                }
-                className="win-input w-full"
-                required
-              />
-            </div>
-
-            <div>
-              <label className="block font-bold mb-1">Juz End:</label>
-              <input
-                type="number"
-                min="1"
-                max="30"
-                value={newSchedule.juzEnd}
-                onChange={(e) =>
-                  setNewSchedule({
-                    ...newSchedule,
-                    juzEnd: Number(e.target.value),
-                  })
-                }
-                className="win-input w-full"
-                required
-              />
-            </div>
-
-            <div>
-              <label className="block font-bold mb-1">Time:</label>
-              <input
-                type="time"
-                value={newSchedule.time}
-                onChange={(e) =>
-                  setNewSchedule({ ...newSchedule, time: e.target.value })
-                }
-                className="win-input w-full"
-                required
-              />
+                {todaySchedule.isKhatma ? "⭐ Unmark" : "⭐ Mark"} as الختمة
+              </button>
+              
+              <button
+                onClick={() => {
+                  setExceptionNote(todaySchedule.exceptionNote || "");
+                  setShowExceptionModal(true);
+                }}
+                className="win-button"
+              >
+                ⚠️ {todaySchedule.exceptionNote ? "Edit" : "Add"} Exception
+              </button>
             </div>
           </div>
-
-          <button type="submit" className="win-button">
-            ➕ Create Schedule
-          </button>
-        </form>
+        ) : (
+          <p className="text-gray-500">No schedule for today. Check with admin to regenerate calendar.</p>
+        )}
       </WindowBox>
 
-      {/* Update Progress */}
-      <WindowBox title="📊 Update Current Progress" id="progress">
-        <form onSubmit={handleUpdateStatus} className="space-y-4">
-          <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+      {/* Record Progress */}
+      <WindowBox title="✍️ Record Where Reading Stopped Today">
+        <form onSubmit={handleUpdateProgress} className="space-y-4">
+          <p className="text-sm text-gray-600 dark:text-gray-400">
+            Record where the majlis stopped reading today. The system will automatically
+            know what to read next based on the schedule.
+          </p>
+
+          <div className="grid grid-cols-2 gap-4">
             <div>
-              <label className="block font-bold mb-1">Current Surah:</label>
+              <label className="block font-bold mb-1">Stopped at Juz:</label>
               <select
-                value={statusForm.surahNumber}
+                value={progressForm.stoppedAtJuz}
                 onChange={(e) =>
-                  setStatusForm({
-                    ...statusForm,
-                    surahNumber: Number(e.target.value),
+                  setProgressForm({
+                    ...progressForm,
+                    stoppedAtJuz: Number(e.target.value),
                   })
                 }
                 className="win-select w-full"
               >
-                {SURAHS.map((surah) => (
-                  <option key={surah.number} value={surah.number}>
-                    {surah.number}. {surah.english}
+                {Array.from({ length: 30 }, (_, i) => i + 1).map((juz) => (
+                  <option key={juz} value={juz}>
+                    Juz {juz} - {getJuzName(juz)?.english}
                   </option>
                 ))}
               </select>
             </div>
 
             <div>
-              <label className="block font-bold mb-1">Current Juz:</label>
+              <label className="block font-bold mb-1">Stopped at Ayah:</label>
               <input
                 type="number"
                 min="1"
-                max="30"
-                value={statusForm.currentJuz}
+                value={progressForm.stoppedAtAyah}
                 onChange={(e) =>
-                  setStatusForm({
-                    ...statusForm,
-                    currentJuz: Number(e.target.value),
-                  })
-                }
-                className="win-input w-full"
-              />
-            </div>
-
-            <div>
-              <label className="block font-bold mb-1">Current Page:</label>
-              <input
-                type="number"
-                min="1"
-                max="604"
-                value={statusForm.currentPage}
-                onChange={(e) =>
-                  setStatusForm({
-                    ...statusForm,
-                    currentPage: Number(e.target.value),
-                  })
-                }
-                className="win-input w-full"
-              />
-            </div>
-
-            <div>
-              <label className="block font-bold mb-1">Completion %:</label>
-              <input
-                type="number"
-                min="0"
-                max="100"
-                step="0.1"
-                value={statusForm.completionPercentage}
-                onChange={(e) =>
-                  setStatusForm({
-                    ...statusForm,
-                    completionPercentage: Number(e.target.value),
+                  setProgressForm({
+                    ...progressForm,
+                    stoppedAtAyah: Number(e.target.value),
                   })
                 }
                 className="win-input w-full"
@@ -434,163 +323,88 @@ export default function ControllerDashboard() {
           </div>
 
           <button type="submit" className="win-button">
-            💾 Update Progress
+            💾 Save Progress
           </button>
         </form>
       </WindowBox>
 
-      {/* Existing Schedules */}
-      <WindowBox title="📋 Existing Schedules">
-        {schedules.length > 0 ? (
+      {/* Exception Modal */}
+      {showExceptionModal && (
+        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
+          <div className="bg-white dark:bg-gray-800 win-box max-w-lg w-full">
+            <div className="flex justify-between items-center mb-4">
+              <h3 className="text-xl font-bold">⚠️ Day Exception Note</h3>
+              <button
+                onClick={() => setShowExceptionModal(false)}
+                className="win-button text-sm"
+              >
+                ✕
+              </button>
+            </div>
+
+            <p className="text-sm text-gray-600 dark:text-gray-400 mb-3">
+              Add a note for any timing changes or special circumstances for today.
+              (e.g., "Started 30 minutes late" or "Continued from previous day")
+            </p>
+
+            <textarea
+              value={exceptionNote}
+              onChange={(e) => setExceptionNote(e.target.value)}
+              className="win-input w-full h-24"
+              placeholder="Enter exception note..."
+            />
+
+            <div className="flex gap-2 mt-4">
+              <button onClick={handleSaveException} className="win-button">
+                💾 Save
+              </button>
+              <button
+                onClick={() => setShowExceptionModal(false)}
+                className="win-button"
+              >
+                Cancel
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* All Schedules Overview */}
+      <WindowBox title="📋 Full Ramadan Schedule (30 Days)">
+        {allSchedules.length > 0 ? (
           <div className="overflow-x-auto">
-            <table className="win-table">
+            <table className="win-table text-sm">
               <thead>
                 <tr>
                   <th>Day</th>
                   <th>Date</th>
-                  <th>Surah</th>
                   <th>Juz</th>
+                  <th>Surahs</th>
                   <th>Time</th>
-                  <th>Actions</th>
+                  <th>Status</th>
                 </tr>
               </thead>
               <tbody>
-                {schedules.map((schedule) => (
-                  <tr key={schedule.id}>
-                    {editingId === schedule.id ? (
-                      <>
-                        <td>
-                          <input
-                            type="number"
-                            value={editSchedule?.ramadanDayNumber || ""}
-                            onChange={(e) =>
-                              setEditSchedule({
-                                ...editSchedule!,
-                                ramadanDayNumber: Number(e.target.value),
-                              })
-                            }
-                            className="win-input w-16"
-                          />
-                        </td>
-                        <td>
-                          <input
-                            type="date"
-                            value={
-                              editSchedule?.date
-                                ? new Date(editSchedule.date)
-                                    .toISOString()
-                                    .split("T")[0]
-                                : ""
-                            }
-                            onChange={(e) =>
-                              setEditSchedule({
-                                ...editSchedule!,
-                                date: e.target.value,
-                              })
-                            }
-                            className="win-input"
-                          />
-                        </td>
-                        <td>
-                          <input
-                            type="text"
-                            value={editSchedule?.surahEnglish || ""}
-                            onChange={(e) =>
-                              setEditSchedule({
-                                ...editSchedule!,
-                                surahEnglish: e.target.value,
-                              })
-                            }
-                            className="win-input w-32"
-                          />
-                        </td>
-                        <td>
-                          <input
-                            type="number"
-                            value={editSchedule?.juzStart || ""}
-                            onChange={(e) =>
-                              setEditSchedule({
-                                ...editSchedule!,
-                                juzStart: Number(e.target.value),
-                              })
-                            }
-                            className="win-input w-16"
-                          />
-                        </td>
-                        <td>
-                          <input
-                            type="time"
-                            value={editSchedule?.time || ""}
-                            onChange={(e) =>
-                              setEditSchedule({
-                                ...editSchedule!,
-                                time: e.target.value,
-                              })
-                            }
-                            className="win-input"
-                          />
-                        </td>
-                        <td>
-                          <button
-                            onClick={handleUpdateSchedule}
-                            className="win-button text-sm mr-1"
-                          >
-                            💾
-                          </button>
-                          <button
-                            onClick={() => {
-                              setEditingId(null);
-                              setEditSchedule(null);
-                            }}
-                            className="win-button text-sm"
-                          >
-                            ✕
-                          </button>
-                        </td>
-                      </>
-                    ) : (
-                      <>
-                        <td className="font-bold">
-                          Day {schedule.ramadanDayNumber}
-                        </td>
-                        <td>
-                          {new Date(schedule.date).toLocaleDateString()}
-                        </td>
-                        <td>
-                          <span className="font-surah-english">
-                            {schedule.surahEnglish}
-                          </span>
-                          {" - "}
-                          <span className="font-quran-arabic rtl">
-                            {schedule.surahArabic}
-                          </span>
-                        </td>
-                        <td>
-                          {schedule.juzStart}
-                          {schedule.juzStart !== schedule.juzEnd
-                            ? `-${schedule.juzEnd}`
-                            : ""}
-                        </td>
-                        <td>{schedule.time}</td>
-                        <td>
-                          <button
-                            onClick={() => {
-                              setEditingId(schedule.id);
-                              setEditSchedule(schedule);
-                            }}
-                            className="win-button text-sm mr-1"
-                          >
-                            ✏️
-                          </button>
-                          <button
-                            onClick={() => handleDeleteSchedule(schedule.id)}
-                            className="win-button text-sm"
-                          >
-                            🗑️
-                          </button>
-                        </td>
-                      </>
-                    )}
+                {allSchedules.map((schedule) => (
+                  <tr key={schedule.id} className={schedule.isKhatma ? "bg-yellow-100 dark:bg-yellow-900" : ""}>
+                    <td className="font-bold">Day {schedule.ramadanDayNumber}</td>
+                    <td>{new Date(schedule.date).toLocaleDateString()}</td>
+                    <td>
+                      {schedule.juzStart}-{schedule.juzEnd}
+                      <div className="text-xs text-gray-600 dark:text-gray-400">
+                        {getJuzName(schedule.juzStart)?.english}
+                      </div>
+                    </td>
+                    <td>
+                      <span className="font-quran-arabic">{schedule.surahArabic}</span>
+                      <br />
+                      <span className="text-xs">{schedule.surahEnglish}</span>
+                    </td>
+                    <td>{schedule.time}</td>
+                    <td>
+                      {schedule.isKhatma && <span className="text-yellow-600">⭐ الختمة</span>}
+                      {schedule.exceptionNote && <span className="text-orange-600">⚠️</span>}
+                    </td>
                   </tr>
                 ))}
               </tbody>
@@ -598,7 +412,7 @@ export default function ControllerDashboard() {
           </div>
         ) : (
           <p className="text-center text-gray-500 py-4">
-            No schedules created yet
+            No schedules exist. Contact admin to generate calendar.
           </p>
         )}
       </WindowBox>

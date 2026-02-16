@@ -1,40 +1,8 @@
 import { PrismaClient } from "@prisma/client";
 import { hashPassword } from "better-auth/crypto";
+import { generateRamadanSchedules } from "../lib/schedule-generator";
 
 const prisma = new PrismaClient();
-
-const SURAHS = [
-  { number: 1, arabic: "الفاتحة", english: "Al-Fatiha", juz: 1 },
-  { number: 2, arabic: "البقرة", english: "Al-Baqarah", juz: 1 },
-  { number: 3, arabic: "آل عمران", english: "Ali 'Imran", juz: 3 },
-  { number: 4, arabic: "النساء", english: "An-Nisa", juz: 4 },
-  { number: 5, arabic: "المائدة", english: "Al-Ma'idah", juz: 6 },
-  { number: 6, arabic: "الأنعام", english: "Al-An'am", juz: 7 },
-  { number: 7, arabic: "الأعراف", english: "Al-A'raf", juz: 8 },
-  { number: 8, arabic: "الأنفال", english: "Al-Anfal", juz: 9 },
-  { number: 9, arabic: "التوبة", english: "At-Tawbah", juz: 10 },
-  { number: 10, arabic: "يونس", english: "Yunus", juz: 11 },
-  { number: 11, arabic: "هود", english: "Hud", juz: 11 },
-  { number: 12, arabic: "يوسف", english: "Yusuf", juz: 12 },
-  { number: 13, arabic: "الرعد", english: "Ar-Ra'd", juz: 13 },
-  { number: 14, arabic: "إبراهيم", english: "Ibrahim", juz: 13 },
-  { number: 15, arabic: "الحجر", english: "Al-Hijr", juz: 14 },
-  { number: 16, arabic: "النحل", english: "An-Nahl", juz: 14 },
-  { number: 17, arabic: "الإسراء", english: "Al-Isra", juz: 15 },
-  { number: 18, arabic: "الكهف", english: "Al-Kahf", juz: 15 },
-  { number: 19, arabic: "مريم", english: "Maryam", juz: 16 },
-  { number: 20, arabic: "طه", english: "Ta-Ha", juz: 16 },
-  { number: 21, arabic: "الأنبياء", english: "Al-Anbiya", juz: 17 },
-  { number: 22, arabic: "الحج", english: "Al-Hajj", juz: 17 },
-  { number: 23, arabic: "المؤمنون", english: "Al-Mu'minun", juz: 18 },
-  { number: 24, arabic: "النور", english: "An-Nur", juz: 18 },
-  { number: 25, arabic: "الفرقان", english: "Al-Furqan", juz: 18 },
-  { number: 26, arabic: "الشعراء", english: "Ash-Shu'ara", juz: 19 },
-  { number: 27, arabic: "النمل", english: "An-Naml", juz: 19 },
-  { number: 28, arabic: "القصص", english: "Al-Qasas", juz: 20 },
-  { number: 29, arabic: "العنكبوت", english: "Al-'Ankabut", juz: 20 },
-  { number: 30, arabic: "الروم", english: "Ar-Rum", juz: 21 },
-];
 
 async function main() {
   console.log("🌱 Starting seed...");
@@ -50,6 +18,7 @@ async function main() {
   await prisma.verification.deleteMany({});
   await prisma.schedule.deleteMany({});
   await prisma.majlisStatus.deleteMany({});
+  await prisma.settings.deleteMany({});
   await prisma.user.deleteMany({});
 
   console.log("👤 Creating users...");
@@ -123,40 +92,52 @@ async function main() {
       currentSurahEnglish: "Al-Fatiha",
       currentJuz: 1,
       currentPage: 1,
+      currentAyah: 1,
       completionPercentage: 0,
       radioStreamUrl: "",
       isLive: false,
     },
   });
 
-  // Create sample schedule for 30 days of Ramadan
-  // Starting from March 1, 2026 (approximate Ramadan start)
-  console.log("📅 Creating sample Ramadan schedule...");
+  // Create Settings with Ramadan start date
+  console.log("⚙️ Creating settings...");
+  
+  const ramadanStartDate = new Date("2026-02-19T00:00:00.000Z"); // Thursday, February 19, 2026
+  
+  await prisma.settings.create({
+    data: {
+      ramadanStartDate,
+    },
+  });
 
-  const ramadanStart = new Date("2026-02-28"); // Approximate Ramadan 1447 start
+  console.log(`✅ Settings created with Ramadan start date: ${ramadanStartDate.toLocaleDateString()}`);
 
-  for (let day = 1; day <= 30; day++) {
-    const date = new Date(ramadanStart);
-    date.setDate(ramadanStart.getDate() + day - 1);
+  // Generate automatic 30-day Ramadan schedule (2 juz per day)
+  console.log("📅 Generating automatic 30-day Ramadan schedule (2 juz/day)...");
 
-    const surahIndex = (day - 1) % SURAHS.length;
-    const surah = SURAHS[surahIndex];
+  const schedules = generateRamadanSchedules(ramadanStartDate, "8:00 PM");
 
+  for (const schedule of schedules) {
     await prisma.schedule.create({
       data: {
-        date,
-        ramadanDayNumber: day,
-        surahArabic: surah.arabic,
-        surahEnglish: surah.english,
-        juzStart: surah.juz,
-        juzEnd: surah.juz,
-        time: "20:00",
+        date: schedule.date,
+        ramadanDayNumber: schedule.ramadanDayNumber,
+        surahArabic: schedule.surahArabic,
+        surahEnglish: schedule.surahEnglish,
+        juzStart: schedule.juzStart,
+        juzEnd: schedule.juzEnd,
+        time: schedule.time,
+        isKhatma: schedule.isKhatma,
         createdById: controller.id,
       },
     });
   }
 
-  console.log("✅ Created 30-day Ramadan schedule");
+  console.log(`✅ Created 30-day Ramadan schedule`);
+  console.log(`   - 2 juz per day (automatic progression)`);
+  console.log(`   - First completion on Day 15 (Juz 29-30)`);
+  console.log(`   - Second cycle starts Day 16 (Juz 1-2)`);
+  console.log(`   - Days 15 and 30 marked as الختمة (Khatma)`);
 
   console.log("");
   console.log("🎉 Seed completed successfully!");
@@ -164,12 +145,18 @@ async function main() {
   console.log("📋 Summary:");
   console.log("   - 3 users created");
   console.log("   - 1 Majlis status record created");
-  console.log("   - 30 schedule entries created");
+  console.log("   - 1 Settings record created");
+  console.log("   - 30 schedule entries created (auto-generated)");
   console.log("");
   console.log("🔐 Login credentials:");
   console.log("   Admin:      admin@majlis.local / admin123");
   console.log("   Controller: controller@majlis.local / controller123");
   console.log("   Majlis:     majlis@majlis.local / majlis123");
+  console.log("");
+  console.log("📅 Ramadan Configuration:");
+  console.log("   Start Date: Thursday, February 19, 2026");
+  console.log("   Schedule:   2 juz per day (completes twice in 30 days)");
+  console.log("   Khatma:     Days 15 and 30");
 }
 
 main()

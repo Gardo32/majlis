@@ -9,7 +9,7 @@ export function WindowBox({ title, children, className = "", id }: WindowBoxProp
   return (
     <div className={`win-box ${className}`} id={id}>
       <div className="win-title-bar-flat">{title}</div>
-      <div className="p-4 bg-white">{children}</div>
+      <div className="p-4 bg-card text-card-foreground">{children}</div>
     </div>
   );
 }

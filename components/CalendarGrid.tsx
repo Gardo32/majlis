@@ -29,7 +29,7 @@ export function CalendarGrid({ schedules }: CalendarGridProps) {
         {["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"].map((day) => (
           <div
             key={day}
-            className="bg-gray-200 border-2 border-black p-2 text-center font-bold"
+            className="bg-secondary text-secondary-foreground border-2 border-border p-2 text-center font-bold"
           >
             {day}
           </div>

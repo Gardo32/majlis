@@ -5,7 +5,7 @@ import { SurahDisplay } from "@/components/SurahDisplay";
 
 async function getMajlisStatus() {
   let status = await prisma.majlisStatus.findFirst();
-  
+
   if (!status) {
     status = await prisma.majlisStatus.create({
       data: {
@@ -19,7 +19,7 @@ async function getMajlisStatus() {
       },
     });
   }
-  
+
   return status;
 }
 
@@ -66,7 +66,7 @@ export default async function ProgressPage() {
             <div className="text-6xl font-bold mb-2">
               {status.completionPercentage.toFixed(1)}%
             </div>
-            <div className="text-gray-600">Complete</div>
+            <div className="text-muted-foreground">Complete</div>
           </div>
 
           <ProgressBar
@@ -75,15 +75,15 @@ export default async function ProgressPage() {
           />
 
           {status.completionPercentage >= 100 ? (
-            <div className="text-center p-4 bg-green-200 border-2 border-green-600">
+            <div className="text-center p-4 bg-primary/20 border-2 border-primary">
               <div className="text-2xl mb-2">🎉 الحمد لله 🎉</div>
               <div className="text-lg font-bold">Khatm Complete!</div>
-              <div className="text-sm text-gray-600">
+              <div className="text-sm text-muted-foreground">
                 May Allah accept our recitation
               </div>
             </div>
           ) : (
-            <div className="text-center p-4 bg-gray-100 border-2 border-black">
+            <div className="text-center p-4 bg-secondary text-secondary-foreground border-2 border-border">
               <div className="text-lg">
                 {(100 - status.completionPercentage).toFixed(1)}% remaining
               </div>
@@ -96,7 +96,7 @@ export default async function ProgressPage() {
       <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
         <WindowBox title="📖 Currently Reading">
           <div className="space-y-4">
-            <div className="border-2 border-black p-4 bg-green-50 text-center">
+            <div className="border-2 border-border p-4 bg-primary/10 text-center">
               <SurahDisplay
                 arabic={status.currentSurahArabic}
                 english={status.currentSurahEnglish}
@@ -109,13 +109,13 @@ export default async function ProgressPage() {
         <WindowBox title="📑 Current Position">
           <div className="space-y-4">
             <div className="grid grid-cols-2 gap-4">
-              <div className="border-2 border-black p-4 bg-gray-50 text-center">
+              <div className="border-2 border-border p-4 bg-muted text-center">
                 <div className="text-4xl font-bold">{status.currentJuz}</div>
-                <div className="text-sm text-gray-600">Current Juz</div>
+                <div className="text-sm text-muted-foreground">Current Juz</div>
               </div>
-              <div className="border-2 border-black p-4 bg-gray-50 text-center">
+              <div className="border-2 border-border p-4 bg-muted text-center">
                 <div className="text-4xl font-bold">{status.currentPage}</div>
-                <div className="text-sm text-gray-600">Current Page</div>
+                <div className="text-sm text-muted-foreground">Current Page</div>
               </div>
             </div>
           </div>
@@ -140,17 +140,17 @@ export default async function ProgressPage() {
       {/* Schedule Stats */}
       <WindowBox title="📅 Schedule Statistics">
         <div className="grid grid-cols-3 gap-4">
-          <div className="border-2 border-black p-4 bg-gray-100 text-center">
+          <div className="border-2 border-border p-4 bg-muted text-muted-foreground text-center">
             <div className="text-3xl font-bold">{stats.completedDays}</div>
-            <div className="text-sm text-gray-600">Days Completed</div>
+            <div className="text-sm text-muted-foreground">Days Completed</div>
           </div>
-          <div className="border-2 border-black p-4 bg-green-100 text-center">
+          <div className="border-2 border-border p-4 bg-primary/20 text-center">
             <div className="text-3xl font-bold">{stats.totalDays}</div>
-            <div className="text-sm text-gray-600">Total Days</div>
+            <div className="text-sm text-muted-foreground">Total Days</div>
           </div>
-          <div className="border-2 border-black p-4 bg-white text-center">
+          <div className="border-2 border-border p-4 bg-card text-card-foreground text-center">
             <div className="text-3xl font-bold">{stats.remainingDays}</div>
-            <div className="text-sm text-gray-600">Days Remaining</div>
+            <div className="text-sm text-muted-foreground">Days Remaining</div>
           </div>
         </div>
       </WindowBox>

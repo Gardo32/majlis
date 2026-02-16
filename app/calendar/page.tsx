@@ -16,25 +16,25 @@ export default async function CalendarPage() {
     <div className="space-y-4">
       <WindowBox title="📅 Ramadan Calendar - Full Schedule">
         <div className="space-y-4">
-          <div className="border-2 border-black p-3 bg-gray-100">
+          <div className="border-2 border-border p-3 bg-secondary text-secondary-foreground">
             <div className="flex flex-wrap gap-4 text-sm">
               <div className="flex items-center gap-2">
-                <div className="w-4 h-4 bg-green-200 border border-black"></div>
+                <div className="w-4 h-4 bg-primary/20 border border-primary"></div>
                 <span>Today</span>
               </div>
               <div className="flex items-center gap-2">
-                <div className="w-4 h-4 bg-gray-100 border border-black"></div>
+                <div className="w-4 h-4 bg-muted border border-border"></div>
                 <span>Past Days</span>
               </div>
               <div className="flex items-center gap-2">
-                <div className="w-4 h-4 bg-white border border-black"></div>
+                <div className="w-4 h-4 bg-card border border-border"></div>
                 <span>Upcoming Days</span>
               </div>
             </div>
           </div>
 
-          <p className="text-sm text-gray-600">
-            Click on any day to view detailed information. 
+          <p className="text-sm text-muted-foreground">
+            Click on any day to view detailed information.
             The calendar shows the complete Ramadan Quran reading schedule.
           </p>
         </div>
@@ -46,7 +46,7 @@ export default async function CalendarPage() {
         <WindowBox title="⚠️ No Schedule Available">
           <div className="text-center py-8">
             <p className="text-lg mb-4">The Ramadan calendar has not been set up yet.</p>
-            <p className="text-sm text-gray-600">
+            <p className="text-sm text-muted-foreground">
               Please check back later or contact the Majlis controller.
             </p>
           </div>
@@ -81,12 +81,12 @@ export default async function CalendarPage() {
                   return (
                     <tr
                       key={schedule.id}
-                      className={isToday ? "bg-green-200" : ""}
+                      className={isToday ? "bg-primary/20" : ""}
                     >
                       <td className="font-bold">
                         Day {schedule.ramadanDayNumber}
                         {isToday && (
-                          <span className="ml-2 text-xs bg-green-600 text-white px-1">
+                          <span className="ml-2 text-xs bg-primary text-primary-foreground px-1">
                             TODAY
                           </span>
                         )}
@@ -112,7 +112,7 @@ export default async function CalendarPage() {
             </table>
           </div>
         ) : (
-          <p className="text-center text-gray-500 py-4">
+          <p className="text-center text-muted-foreground py-4">
             No schedules available
           </p>
         )}

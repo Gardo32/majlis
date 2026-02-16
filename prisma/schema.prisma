@@ -78,6 +78,10 @@ model Schedule {
   juzStart        Int
   juzEnd          Int
   time            String
+  isKhatma        Boolean  @default(false)
+  exceptionNote   String?
+  actualJuzStart  Int?
+  actualJuzEnd    Int?
   createdAt       DateTime @default(now())
   updatedAt       DateTime @updatedAt
   
@@ -91,10 +95,20 @@ model MajlisStatus {
   currentSurahEnglish  String   @default("")
   currentJuz           Int      @default(1)
   currentPage          Int      @default(1)
+  currentAyah          Int      @default(1)
   completionPercentage Float    @default(0)
   radioStreamUrl       String   @default("")
+  youtubeVideoId       String?  
+  youtubeLiveUrl       String?  
   isLive               Boolean  @default(false)
   updatedAt            DateTime @updatedAt
+}
+
+model Settings {
+  id                String   @id @default(auto()) @map("_id") @db.ObjectId
+  ramadanStartDate  DateTime
+  createdAt         DateTime @default(now())
+  updatedAt         DateTime @updatedAt
 }
 
 model CustomRolePermission {

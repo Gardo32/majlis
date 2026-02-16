@@ -6,6 +6,8 @@ import { LiveIndicator } from "@/components/LiveIndicator";
 
 interface MajlisStatus {
   radioStreamUrl: string;
+  youtubeVideoId: string | null;
+  youtubeLiveUrl: string | null;
   isLive: boolean;
 }
 
@@ -16,6 +18,7 @@ export default function MajlisDashboard() {
   const [error, setError] = useState("");
 
   const [formData, setFormData] = useState({
+    youtubeVideoId: "",
     radioStreamUrl: "",
     isLive: false,
   });
@@ -31,7 +34,8 @@ export default function MajlisDashboard() {
         const data = await res.json();
         setStatus(data);
         setFormData({
-          radioStreamUrl: data.radioStreamUrl,
+          youtubeVideoId: data.youtubeVideoId || "",
+          radioStreamUrl: data.radioStreamUrl || "",
           isLive: data.isLive,
         });
       }
@@ -47,11 +51,21 @@ export default function MajlisDashboard() {
     setMessage("");
     setError("");
 
+    // Generate YouTube embed URL if video ID is provided
+    let youtubeLiveUrl = null;
+    if (formData.youtubeVideoId.trim()) {
+      youtubeLiveUrl = `https://www.youtube.com/embed/${formData.youtubeVideoId}`;
+    }
+
     try {
       const res = await fetch("/api/status", {
         method: "PUT",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify(formData),
+        body: JSON.stringify({
+          youtubeVideoId: formData.youtubeVideoId || null,
+          youtubeLiveUrl,
+          radioStreamUrl: formData.radioStreamUrl,
+        }),
       });
 
       if (res.ok) {
@@ -99,20 +113,20 @@ export default function MajlisDashboard() {
 
   return (
     <div className="space-y-4">
-      <WindowBox title="📻 Majlis Dashboard - Radio Management">
-        <p className="text-sm text-gray-600">
-          Manage the radio stream URL and live status indicator.
+      <WindowBox title="📻 Majlis Dashboard - Streaming Management">
+        <p className="text-sm text-gray-600 dark:text-gray-400">
+          Manage YouTube Live streaming or audio-only stream URL and live status.
         </p>
       </WindowBox>
 
       {message && (
-        <div className="border-2 border-green-600 bg-green-100 p-3 text-green-800">
+        <div className="win-box bg-green-100 dark:bg-green-900 text-green-800 dark:text-green-100 p-3">
           ✓ {message}
         </div>
       )}
 
       {error && (
-        <div className="border-2 border-red-600 bg-red-100 p-3 text-red-800">
+        <div className="win-box bg-red-100 dark:bg-red-900 text-red-800 dark:text-red-100 p-3">
           ⚠️ {error}
         </div>
       )}
@@ -120,7 +134,7 @@ export default function MajlisDashboard() {
       {/* Live Status Toggle */}
       <WindowBox title="📡 Live Status Control">
         <div className="space-y-4">
-          <div className="flex items-center justify-between border-2 border-black p-4 bg-gray-50">
+          <div className="flex items-center justify-between win-box p-4">
             <div>
               <div className="font-bold mb-2">Current Status:</div>
               <LiveIndicator isLive={formData.isLive} />
@@ -130,15 +144,15 @@ export default function MajlisDashboard() {
               onClick={toggleLive}
               className={`win-button text-lg px-8 py-2 ${
                 formData.isLive
-                  ? "bg-red-200 hover:bg-red-300"
-                  : "bg-green-200 hover:bg-green-300"
+                  ? "bg-red-200 hover:bg-red-300 dark:bg-red-800"
+                  : "bg-green-200 hover:bg-green-300 dark:bg-green-800"
               }`}
             >
               {formData.isLive ? "🔴 Go OFFLINE" : "🟢 Go LIVE"}
             </button>
           </div>
 
-          <div className="text-sm text-gray-600">
+          <div className="text-sm text-gray-600 dark:text-gray-400">
             <p>
               <strong>Note:</strong> Toggle the live status when the Majlis
               stream is active. This indicator shows viewers whether the stream
@@ -148,11 +162,51 @@ export default function MajlisDashboard() {
         </div>
       </WindowBox>
 
-      {/* Stream URL Settings */}
-      <WindowBox title="🔗 Stream URL Configuration">
+      {/* YouTube Live Configuration */}
+      <WindowBox title="📺 YouTube Live Configuration (Recommended)">
         <form onSubmit={handleSubmit} className="space-y-4">
           <div>
-            <label className="block font-bold mb-1">Radio Stream URL:</label>
+            <label className="block font-bold mb-1">YouTube Video ID:</label>
+            <input
+              type="text"
+              value={formData.youtubeVideoId}
+              onChange={(e) =>
+                setFormData({ ...formData, youtubeVideoId: e.target.value })
+              }
+              placeholder="e.g., dQw4w9WgXcQ"
+              className="win-input w-full"
+            />
+            <p className="text-sm text-gray-600 dark:text-gray-400 mt-1">
+              Enter the YouTube video ID from your live stream URL.
+              For example, from https://youtu.be/dQw4w9WgXcQ, enter: dQw4w9WgXcQ
+            </p>
+          </div>
+
+          {formData.youtubeVideoId && (
+            <div className="win-box bg-blue-50 dark:bg-blue-950 p-3">
+              <strong>Preview URL:</strong>{" "}
+              <a 
+                href={`https://www.youtube.com/watch?v=${formData.youtubeVideoId}`}
+                target="_blank"
+                rel="noopener noreferrer"
+                className="text-blue-600 dark:text-blue-400 underline"
+              >
+                https://www.youtube.com/watch?v={formData.youtubeVideoId}
+              </a>
+            </div>
+          )}
+
+          <button type="submit" className="win-button">
+            💾 Save YouTube Stream
+          </button>
+        </form>
+      </WindowBox>
+
+      {/* Audio-Only Stream (Legacy) */}
+      <WindowBox title="🔗 Audio-Only Stream URL (Optional - Legacy)">
+        <form onSubmit={handleSubmit} className="space-y-4">
+          <div>
+            <label className="block font-bold mb-1">Audio Stream URL:</label>
             <input
               type="url"
               value={formData.radioStreamUrl}
@@ -162,13 +216,13 @@ export default function MajlisDashboard() {
               placeholder="https://your-icecast-server.com/stream"
               className="win-input w-full"
             />
-            <p className="text-sm text-gray-600 mt-1">
-              Enter the full URL of your Icecast or audio stream
+            <p className="text-sm text-gray-600 dark:text-gray-400 mt-1">
+              Optional: Enter an audio-only stream URL if not using YouTube
             </p>
           </div>
 
           <button type="submit" className="win-button">
-            💾 Save Stream URL
+            💾 Save Audio Stream
           </button>
         </form>
       </WindowBox>
@@ -176,42 +230,61 @@ export default function MajlisDashboard() {
       {/* Current Settings Display */}
       <WindowBox title="ℹ️ Current Settings">
         <div className="space-y-2">
-          <div className="border border-black p-2 bg-gray-50">
-            <strong>Stream URL:</strong>{" "}
+          <div className="win-box p-2">
+            <strong>YouTube Video ID:</strong>{" "}
+            {status?.youtubeVideoId || "(Not configured)"}
+          </div>
+          <div className="win-box p-2">
+            <strong>Audio Stream URL:</strong>{" "}
             {status?.radioStreamUrl || "(Not configured)"}
           </div>
-          <div className="border border-black p-2 bg-gray-50">
+          <div className="win-box p-2">
             <strong>Live Status:</strong>{" "}
             {status?.isLive ? "🟢 LIVE" : "⚫ OFFLINE"}
           </div>
         </div>
       </WindowBox>
 
-      {/* Icecast Setup Instructions */}
-      <WindowBox title="⚙️ Icecast Setup Guide">
+      {/* YouTube Live Setup Instructions */}
+      <WindowBox title="⚙️ YouTube Live Setup Guide">
         <div className="space-y-3 text-sm">
-          <p className="font-bold">To set up your Icecast stream:</p>
+          <p className="font-bold">To set up YouTube Live streaming:</p>
 
-          <div className="border border-black p-3 bg-gray-50">
-            <strong>1.</strong> Install Icecast on your server
+          <div className="win-box p-3">
+            <strong>1.</strong> Go to{" "}
+            <a 
+              href="https://studio.youtube.com" 
+              target="_blank"
+              rel="noopener noreferrer"
+              className="text-blue-600 dark:text-blue-400 underline"
+            >
+              YouTube Studio
+            </a>
           </div>
 
-          <div className="border border-black p-3 bg-gray-50">
-            <strong>2.</strong> Configure a mount point (e.g., /stream)
+          <div className="win-box p-3">
+            <strong>2.</strong> Click "Create" → "Go live"
           </div>
 
-          <div className="border border-black p-3 bg-gray-50">
-            <strong>3.</strong> Use a source client (like BUTT or Mixxx) to
-            broadcast
+          <div className="win-box p-3">
+            <strong>3.</strong> Choose streaming software (like OBS Studio, vMix, or mobile app)
           </div>
 
-          <div className="border border-black p-3 bg-gray-50">
-            <strong>4.</strong> Enter your stream URL above (e.g.,
-            http://server:8000/stream)
+          <div className="win-box p-3">
+            <strong>4.</strong> Configure your stream (title, description, privacy settings)
           </div>
 
-          <div className="border border-black p-3 bg-gray-50">
-            <strong>5.</strong> Toggle "Go LIVE" when broadcasting
+          <div className="win-box p-3">
+            <strong>5.</strong> Start your stream and copy the Video ID from the URL
+          </div>
+
+          <div className="win-box p-3">
+            <strong>6.</strong> Enter the Video ID above and toggle "Go LIVE"
+          </div>
+
+          <div className="mt-4 win-box bg-yellow-50 dark:bg-yellow-950 p-3 text-yellow-800 dark:text-yellow-200">
+            <strong>💡 Tip:</strong> YouTube Live provides free, high-quality video and audio
+            streaming to unlimited viewers without managing your own servers!
           </div>
         </div>
       </WindowBox>

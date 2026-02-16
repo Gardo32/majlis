@@ -25,7 +25,7 @@ export function ScheduleBox({ title, schedule, highlight = false }: ScheduleBoxP
         <div className="space-y-3">
           <div className="flex justify-between items-center">
             <span className="font-bold">Day {schedule.ramadanDayNumber}</span>
-            <span className="text-sm bg-gray-200 px-2 py-1 border border-black">
+            <span className="text-sm bg-secondary text-secondary-foreground px-2 py-1 border border-border">
               {new Date(schedule.date).toLocaleDateString()}
             </span>
           </div>
@@ -37,18 +37,18 @@ export function ScheduleBox({ title, schedule, highlight = false }: ScheduleBoxP
           />
 
           <div className="grid grid-cols-2 gap-2 text-sm">
-            <div className="border border-black p-2 bg-gray-50">
-              <span className="font-bold">Juz:</span>{" "}
+            <div className="border border-border p-2 bg-muted text-muted-foreground">
+              <span className="font-bold text-foreground">Juz:</span>{" "}
               {schedule.juzStart}
               {schedule.juzStart !== schedule.juzEnd ? `-${schedule.juzEnd}` : ""}
             </div>
-            <div className="border border-black p-2 bg-gray-50">
-              <span className="font-bold">Time:</span> {schedule.time}
+            <div className="border border-border p-2 bg-muted text-muted-foreground">
+              <span className="font-bold text-foreground">Time:</span> {schedule.time}
             </div>
           </div>
         </div>
       ) : (
-        <div className="text-gray-500 text-center py-4">
+        <div className="text-muted-foreground text-center py-4">
           No schedule available
         </div>
       )}

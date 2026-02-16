@@ -10,10 +10,10 @@ import Link from "next/link";
 async function getSchedules() {
   const today = new Date();
   today.setHours(0, 0, 0, 0);
-  
+
   const tomorrow = new Date(today);
   tomorrow.setDate(tomorrow.getDate() + 1);
-  
+
   const schedules = await prisma.schedule.findMany({
     orderBy: { date: "asc" },
   });
@@ -35,7 +35,7 @@ async function getSchedules() {
 
 async function getMajlisStatus() {
   let status = await prisma.majlisStatus.findFirst();
-  
+
   if (!status) {
     status = await prisma.majlisStatus.create({
       data: {
@@ -49,7 +49,7 @@ async function getMajlisStatus() {
       },
     });
   }
-  
+
   return status;
 }
 
@@ -60,7 +60,7 @@ export default async function HomePage() {
   // Get next 5 upcoming schedules
   const today = new Date();
   today.setHours(0, 0, 0, 0);
-  
+
   const upcomingSchedules = schedules
     .filter((s) => {
       const scheduleDate = new Date(s.date);
@@ -75,7 +75,7 @@ export default async function HomePage() {
       <WindowBox title="🕌 Majlis Haji Ebrahim Aldaqaq - Quran Majlis Tracker">
         <div className="text-center space-y-2">
           <p className="text-lg">Welcome to the Ramadan Quran Majlis Tracking System</p>
-          <p className="text-sm text-gray-600">
+          <p className="text-sm text-muted-foreground">
             View today's scheduled reading, track progress, and follow along with the Majlis
           </p>
         </div>
@@ -102,7 +102,7 @@ export default async function HomePage() {
         {/* Current Majlis Progress */}
         <WindowBox title="📊 Current Majlis Progress">
           <div className="space-y-4">
-            <div className="border-2 border-black p-3 bg-green-50">
+            <div className="border-2 border-border p-3 bg-card text-card-foreground">
               <div className="font-bold mb-2">Currently Reading:</div>
               <SurahDisplay
                 arabic={status.currentSurahArabic}
@@ -112,11 +112,11 @@ export default async function HomePage() {
             </div>
 
             <div className="grid grid-cols-2 gap-2">
-              <div className="border border-black p-2 bg-gray-50">
-                <span className="font-bold">Juz:</span> {status.currentJuz}
+              <div className="border border-border p-2 bg-muted text-muted-foreground">
+                <span className="font-bold text-foreground">Juz:</span> {status.currentJuz}
               </div>
-              <div className="border border-black p-2 bg-gray-50">
-                <span className="font-bold">Page:</span> {status.currentPage}
+              <div className="border border-border p-2 bg-muted text-muted-foreground">
+                <span className="font-bold text-foreground">Page:</span> {status.currentPage}
               </div>
             </div>
           </div>
@@ -130,7 +130,7 @@ export default async function HomePage() {
               label="Overall Progress"
             />
 
-            <div className="text-sm text-center border border-black p-2 bg-gray-50">
+            <div className="text-sm text-center border border-border p-2 bg-muted text-muted-foreground">
               {status.completionPercentage >= 100
                 ? "🎉 Khatm Complete! Alhamdulillah!"
                 : `${(100 - status.completionPercentage).toFixed(1)}% remaining`}
