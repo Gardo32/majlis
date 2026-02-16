@@ -62,6 +62,8 @@ export async function PUT(
       exceptionNote,
       actualJuzStart,
       actualJuzEnd,
+      stoppedAtJuz,
+      completedLastJuz,
     } = body;
 
     const updateData: any = {};
@@ -76,6 +78,8 @@ export async function PUT(
     if (exceptionNote !== undefined) updateData.exceptionNote = exceptionNote;
     if (actualJuzStart !== undefined) updateData.actualJuzStart = actualJuzStart;
     if (actualJuzEnd !== undefined) updateData.actualJuzEnd = actualJuzEnd;
+    if (stoppedAtJuz !== undefined) updateData.stoppedAtJuz = stoppedAtJuz;
+    if (completedLastJuz !== undefined) updateData.completedLastJuz = completedLastJuz;
 
     const schedule = await prisma.schedule.update({
       where: { id },

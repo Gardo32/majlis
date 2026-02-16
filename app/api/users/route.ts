@@ -64,18 +64,39 @@ export async function POST(request: NextRequest) {
     }
 
     // Use Better Auth's internal API to create user with hashed password
-    const ctx = await auth.api.signUpEmail({
-      body: {
-        name,
-        email,
-        password,
-      },
-      asResponse: false,
+    let signUpResult;
+    try {
+      signUpResult = await auth.api.signUpEmail({
+        body: {
+          name,
+          email,
+          password,
+        },
+        asResponse: false,
+      });
+    } catch (signUpError) {
+      console.error("Better Auth signUpEmail failed:", signUpError);
+      return NextResponse.json(
+        { error: "Failed to create user account" },
+        { status: 500 }
+      );
+    }
+
+    // Verify the user was actually created
+    const createdUser = await prisma.user.findUnique({
+      where: { email },
     });
+
+    if (!createdUser) {
+      return NextResponse.json(
+        { error: "User account was not created successfully" },
+        { status: 500 }
+      );
+    }
 
     // Update the user's role after creation
     const newUser = await prisma.user.update({
-      where: { email },
+      where: { id: createdUser.id },
       data: { role },
       select: {
         id: true,

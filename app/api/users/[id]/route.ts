@@ -104,7 +104,8 @@ export async function DELETE(
       );
     }
 
-    // Delete associated sessions and accounts first
+    // Delete all associated records first
+    await prisma.schedule.deleteMany({ where: { createdById: id } });
     await prisma.session.deleteMany({ where: { userId: id } });
     await prisma.account.deleteMany({ where: { userId: id } });
 

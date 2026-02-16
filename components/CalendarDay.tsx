@@ -1,26 +1,12 @@
 "use client";
 
-import { isToday, isPast, isFuture } from "@/lib/date-utils";
+import { isToday, isPast } from "@/lib/date-utils";
 import { getJuzName, getSurahsInJuzRange } from "@/lib/surah-data";
 import { useLanguage } from "./LanguageProvider";
-
-interface ScheduleItem {
-  id: string;
-  date: Date;
-  ramadanDayNumber: number;
-  surahArabic: string;
-  surahEnglish: string;
-  juzStart: number;
-  juzEnd: number;
-  time: string;
-  isKhatma?: boolean;
-  exceptionNote?: string | null;
-  actualJuzStart?: number | null;
-  actualJuzEnd?: number | null;
-}
+import type { DynamicScheduleEntry } from "@/lib/schedule-utils";
 
 interface CalendarDayProps {
-  schedule: ScheduleItem;
+  schedule: DynamicScheduleEntry;
   onClick?: () => void;
   /** Render as a horizontal card for mobile list view */
   listMode?: boolean;
@@ -31,17 +17,19 @@ export function CalendarDay({ schedule, onClick, listMode }: CalendarDayProps) {
   const date = new Date(schedule.date);
   const today = isToday(date);
   const past = isPast(date);
-  
-  const juzName = getJuzName(schedule.juzStart);
+
+  const juzStart = schedule.dynamicJuzStart;
+  const juzEnd = schedule.dynamicJuzEnd;
+  const juzName = getJuzName(juzStart);
 
   let bgClass = "bg-card";
-  
+
   if (schedule.isKhatma) {
     bgClass = "bg-gradient-to-br from-yellow-400 to-yellow-600 text-black dark:from-yellow-500 dark:to-yellow-700";
   } else if (today) {
     bgClass = "bg-primary/20 border-primary";
   } else if (past) {
-    bgClass = "bg-muted";
+    bgClass = schedule.isRecorded ? "bg-green-50 dark:bg-green-950" : "bg-muted";
   }
 
   // Mobile list mode: horizontal card layout
@@ -65,10 +53,10 @@ export function CalendarDay({ schedule, onClick, listMode }: CalendarDayProps) {
             )}
           </div>
 
-          {/* Center: Surah info */}
+          {/* Center: Surah info + juz */}
           <div className="flex-1 min-w-0">
             {(() => {
-              const surahs = getSurahsInJuzRange(schedule.juzStart, schedule.juzEnd);
+              const surahs = getSurahsInJuzRange(juzStart, juzEnd);
               const displaySurahs = surahs.length > 3
                 ? `${surahs[0].arabic} ... ${surahs[surahs.length - 1].arabic}`
                 : surahs.map(s => s.arabic).join(" - ");
@@ -79,9 +67,17 @@ export function CalendarDay({ schedule, onClick, listMode }: CalendarDayProps) {
               );
             })()}
             <div className="text-xs text-muted-foreground">
-              {t('home.juz')} {schedule.juzStart}{schedule.juzStart !== schedule.juzEnd ? `-${schedule.juzEnd}` : ""}
+              {t('home.juz')} {juzStart}{juzStart !== juzEnd ? `-${juzEnd}` : ""}
               {juzName && <span className="opacity-75 ms-1">({juzName.arabic})</span>}
             </div>
+            {/* Show planned vs actual when different */}
+            {schedule.differsFromPlan && (
+              <div className="text-[10px] text-blue-600 dark:text-blue-400">
+                {t('calendar.planned')}: {schedule.juzStart}-{schedule.juzEnd}
+                {schedule.isRecorded && " ✅"}
+                {!schedule.isRecorded && " ↻"}
+              </div>
+            )}
           </div>
 
           {/* Right: Time + status */}
@@ -105,6 +101,7 @@ export function CalendarDay({ schedule, onClick, listMode }: CalendarDayProps) {
       <div className="absolute top-0.5 end-0.5 flex gap-0.5">
         {schedule.isKhatma && <span className="text-sm sm:text-xl" title="الختمة">⭐</span>}
         {schedule.exceptionNote && <span className="text-sm sm:text-lg" title={schedule.exceptionNote}>⚠️</span>}
+        {schedule.isRecorded && <span className="text-sm sm:text-lg" title={t('ctrl.recorded')}>✅</span>}
       </div>
 
       <div className="flex justify-between items-start mb-1">
@@ -119,7 +116,7 @@ export function CalendarDay({ schedule, onClick, listMode }: CalendarDayProps) {
       </div>
 
       {(() => {
-        const surahs = getSurahsInJuzRange(schedule.juzStart, schedule.juzEnd);
+        const surahs = getSurahsInJuzRange(juzStart, juzEnd);
         const displaySurahs = surahs.length > 3
           ? `${surahs[0].arabic}...${surahs[surahs.length - 1].arabic}`
           : surahs.map(s => s.arabic).join(" - ");
@@ -131,17 +128,16 @@ export function CalendarDay({ schedule, onClick, listMode }: CalendarDayProps) {
       })()}
 
       <div className="text-[10px] sm:text-xs text-muted-foreground">
-        {t('home.juz')} {schedule.juzStart}{schedule.juzStart !== schedule.juzEnd ? `-${schedule.juzEnd}` : ""}
+        {t('home.juz')} {juzStart}{juzStart !== juzEnd ? `-${juzEnd}` : ""}
         {juzName && (
           <span className="hidden sm:block text-[10px] opacity-75">{juzName.arabic}</span>
         )}
       </div>
 
-      {schedule.actualJuzStart && schedule.actualJuzStart !== schedule.juzStart && (
+      {/* Show planned when different from actual */}
+      {schedule.differsFromPlan && (
         <div className="text-[10px] sm:text-xs text-blue-600 dark:text-blue-400 mt-0.5">
-          {t('calendar.actual')}: {t('home.juz')} {schedule.actualJuzStart}
-          {schedule.actualJuzEnd && schedule.actualJuzEnd !== schedule.actualJuzStart
-            ? `-${schedule.actualJuzEnd}` : ""}
+          {t('calendar.planned')}: {schedule.juzStart}-{schedule.juzEnd}
         </div>
       )}
 

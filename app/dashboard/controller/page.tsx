@@ -2,8 +2,9 @@
 
 import { useState, useEffect } from "react";
 import { WindowBox } from "@/components/WindowBox";
-import { getJuzName, SURAHS } from "@/lib/surah-data";
+import { getJuzName } from "@/lib/surah-data";
 import { useLanguage } from "@/components/LanguageProvider";
+import { computeDynamicSchedule, type DynamicScheduleEntry } from "@/lib/schedule-utils";
 
 interface Schedule {
   id: string;
@@ -18,33 +19,23 @@ interface Schedule {
   exceptionNote: string | null;
   actualJuzStart: number | null;
   actualJuzEnd: number | null;
-}
-
-interface MajlisStatus {
-  currentJuz: number;
-  currentAyah: number;
-  currentSurahArabic: string;
-  currentSurahEnglish: string;
+  stoppedAtJuz: number | null;
+  completedLastJuz: boolean | null;
 }
 
 export default function ControllerDashboard() {
   const { t, locale } = useLanguage();
   const [todaySchedule, setTodaySchedule] = useState<Schedule | null>(null);
   const [allSchedules, setAllSchedules] = useState<Schedule[]>([]);
-  const [status, setStatus] = useState<MajlisStatus | null>(null);
+  const [dynamicSchedules, setDynamicSchedules] = useState<DynamicScheduleEntry[]>([]);
   const [loading, setLoading] = useState(true);
   const [message, setMessage] = useState("");
   const [error, setError] = useState("");
 
-  // Progress form
-  const [progressForm, setProgressForm] = useState({
-    stoppedAtSurah: 1,
-    stoppedAtJuz: 1,
-    stoppedAtAyah: 1,
-  });
-
-  // Get surahs that are in the selected juz
-  const surahsInSelectedJuz = SURAHS.filter(s => s.juz === progressForm.stoppedAtJuz);
+  // Record stopping form
+  const [selectedDayId, setSelectedDayId] = useState<string>("");
+  const [stoppedAtJuz, setStoppedAtJuz] = useState<number>(1);
+  const [completedLastJuz, setCompletedLastJuz] = useState<boolean>(true);
 
   // Exception form
   const [showExceptionModal, setShowExceptionModal] = useState(false);
@@ -56,38 +47,40 @@ export default function ControllerDashboard() {
 
   const fetchData = async () => {
     try {
-      const [schedulesRes, statusRes] = await Promise.all([
-        fetch("/api/schedules"),
-        fetch("/api/status"),
-      ]);
+      const schedulesRes = await fetch("/api/schedules");
 
       if (schedulesRes.ok) {
-        const schedules = await schedulesRes.json();
+        const schedules: Schedule[] = await schedulesRes.json();
         setAllSchedules(schedules);
+
+        // Compute dynamic schedule
+        const dynamic = computeDynamicSchedule(schedules);
+        setDynamicSchedules(dynamic);
 
         // Find today's schedule
         const today = new Date();
         today.setHours(0, 0, 0, 0);
         const todayStr = today.toISOString().split("T")[0];
-        
-        const todayScheduleItem = schedules.find((s: Schedule) => {
+
+        const todayItem = schedules.find((s: Schedule) => {
           const scheduleDate = new Date(s.date);
           scheduleDate.setHours(0, 0, 0, 0);
           return scheduleDate.toISOString().split("T")[0] === todayStr;
         });
 
-        setTodaySchedule(todayScheduleItem || null);
-      }
+        setTodaySchedule(todayItem || null);
 
-      if (statusRes.ok) {
-        const data = await statusRes.json();
-        setStatus(data);
-        const currentSurah = SURAHS.find(s => s.english === data.currentSurahEnglish);
-        setProgressForm({
-          stoppedAtSurah: currentSurah?.number || 1,
-          stoppedAtJuz: data.currentJuz || 1,
-          stoppedAtAyah: data.currentAyah || 1,
-        });
+        // Default selection to today's schedule
+        if (todayItem) {
+          setSelectedDayId(todayItem.id);
+          if (todayItem.stoppedAtJuz) {
+            setStoppedAtJuz(todayItem.stoppedAtJuz);
+            setCompletedLastJuz(todayItem.completedLastJuz ?? true);
+          } else {
+            setStoppedAtJuz(todayItem.juzEnd);
+            setCompletedLastJuz(true);
+          }
+        }
       }
     } catch (err) {
       setError("Failed to load data");
@@ -96,32 +89,70 @@ export default function ControllerDashboard() {
     }
   };
 
-  const handleUpdateProgress = async (e: React.FormEvent) => {
+  const handleDaySelect = (dayId: string) => {
+    setSelectedDayId(dayId);
+    const schedule = allSchedules.find(s => s.id === dayId);
+    if (schedule) {
+      if (schedule.stoppedAtJuz) {
+        setStoppedAtJuz(schedule.stoppedAtJuz);
+        setCompletedLastJuz(schedule.completedLastJuz ?? true);
+      } else {
+        const dynamic = dynamicSchedules.find(d => d.id === dayId);
+        setStoppedAtJuz(dynamic?.dynamicJuzEnd || schedule.juzEnd);
+        setCompletedLastJuz(true);
+      }
+    }
+  };
+
+  const handleRecordStopping = async (e: React.FormEvent) => {
     e.preventDefault();
     setMessage("");
     setError("");
 
-    const surah = SURAHS.find(s => s.number === progressForm.stoppedAtSurah);
-    if (!surah) {
-      setError("Invalid surah selected");
+    if (!selectedDayId) {
+      setError(t('ctrl.select_day_error'));
       return;
     }
 
     try {
-      const res = await fetch("/api/status", {
+      const res = await fetch(`/api/schedules/${selectedDayId}`, {
         method: "PUT",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
-          currentSurahArabic: surah.arabic,
-          currentSurahEnglish: surah.english,
-          currentJuz: progressForm.stoppedAtJuz,
-          currentAyah: progressForm.stoppedAtAyah,
+          stoppedAtJuz: stoppedAtJuz,
+          completedLastJuz: completedLastJuz,
         }),
       });
 
       if (res.ok) {
         setMessage(t('ctrl.progress_saved'));
-        fetchData();
+        await fetchData();
+      } else {
+        const data = await res.json();
+        setError(data.error || t('common.error'));
+      }
+    } catch (err) {
+      setError(t('common.error'));
+    }
+  };
+
+  const handleClearRecording = async (scheduleId: string) => {
+    setMessage("");
+    setError("");
+
+    try {
+      const res = await fetch(`/api/schedules/${scheduleId}`, {
+        method: "PUT",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          stoppedAtJuz: null,
+          completedLastJuz: null,
+        }),
+      });
+
+      if (res.ok) {
+        setMessage(t('ctrl.recording_cleared'));
+        await fetchData();
       } else {
         const data = await res.json();
         setError(data.error || t('common.error'));
@@ -133,7 +164,6 @@ export default function ControllerDashboard() {
 
   const handleToggleKhatma = async () => {
     if (!todaySchedule) return;
-    
     setMessage("");
     setError("");
 
@@ -141,13 +171,11 @@ export default function ControllerDashboard() {
       const res = await fetch(`/api/schedules/${todaySchedule.id}`, {
         method: "PUT",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          isKhatma: !todaySchedule.isKhatma,
-        }),
+        body: JSON.stringify({ isKhatma: !todaySchedule.isKhatma }),
       });
 
       if (res.ok) {
-        setMessage(`${todaySchedule.isKhatma ? t('ctrl.unmarked_khatma') : t('ctrl.marked_khatma')}`);
+        setMessage(todaySchedule.isKhatma ? t('ctrl.unmarked_khatma') : t('ctrl.marked_khatma'));
         fetchData();
       } else {
         const data = await res.json();
@@ -166,13 +194,11 @@ export default function ControllerDashboard() {
       const res = await fetch(`/api/schedules/${scheduleId}`, {
         method: "PUT",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          isKhatma: !currentIsKhatma,
-        }),
+        body: JSON.stringify({ isKhatma: !currentIsKhatma }),
       });
 
       if (res.ok) {
-        setMessage(`${currentIsKhatma ? t('ctrl.unmarked_khatma') : t('ctrl.marked_khatma')}`);
+        setMessage(currentIsKhatma ? t('ctrl.unmarked_khatma') : t('ctrl.marked_khatma'));
         fetchData();
       } else {
         const data = await res.json();
@@ -185,7 +211,6 @@ export default function ControllerDashboard() {
 
   const handleSaveException = async () => {
     if (!todaySchedule) return;
-    
     setMessage("");
     setError("");
 
@@ -193,9 +218,7 @@ export default function ControllerDashboard() {
       const res = await fetch(`/api/schedules/${todaySchedule.id}`, {
         method: "PUT",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          exceptionNote: exceptionNote || null,
-        }),
+        body: JSON.stringify({ exceptionNote: exceptionNote || null }),
       });
 
       if (res.ok) {
@@ -210,6 +233,8 @@ export default function ControllerDashboard() {
       setError(t('common.error'));
     }
   };
+
+  const getDynamic = (id: string) => dynamicSchedules.find(d => d.id === id);
 
   if (loading) {
     return (
@@ -243,35 +268,47 @@ export default function ControllerDashboard() {
       <WindowBox title={t('ctrl.today')}>
         {todaySchedule ? (
           <div className="space-y-3">
-            <div className="grid grid-cols-2 gap-4">
-              <div>
-                <span className="font-bold">{t('ctrl.ramadan_day')}:</span> {todaySchedule.ramadanDayNumber}
-              </div>
-              <div>
-                <span className="font-bold">{t('ctrl.date')}:</span>{" "}
-                {new Date(todaySchedule.date).toLocaleDateString(locale === 'ar' ? 'ar-SA' : 'en-US', {
-                  weekday: "long",
-                  year: "numeric",
-                  month: "long",
-                  day: "numeric",
-                })}
-              </div>
-              <div>
-                <span className="font-bold">{t('ctrl.expected_juz')}:</span> {todaySchedule.juzStart}-{todaySchedule.juzEnd}
-                <div className="text-sm text-gray-600 dark:text-gray-400">
-                  {getJuzName(todaySchedule.juzStart)?.english} - {getJuzName(todaySchedule.juzEnd)?.english}
+            {(() => {
+              const dyn = getDynamic(todaySchedule.id);
+              return (
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                  <div>
+                    <span className="font-bold">{t('ctrl.ramadan_day')}:</span> {todaySchedule.ramadanDayNumber}
+                  </div>
+                  <div>
+                    <span className="font-bold">{t('ctrl.date')}:</span>{" "}
+                    {new Date(todaySchedule.date).toLocaleDateString(locale === 'ar' ? 'ar-SA' : 'en-US', {
+                      weekday: "long",
+                      year: "numeric",
+                      month: "long",
+                      day: "numeric",
+                    })}
+                  </div>
+                  <div>
+                    <span className="font-bold">{t('ctrl.planned_juz')}:</span> {todaySchedule.juzStart}-{todaySchedule.juzEnd}
+                    <div className="text-sm text-gray-600 dark:text-gray-400">
+                      {getJuzName(todaySchedule.juzStart)?.english} - {getJuzName(todaySchedule.juzEnd)?.english}
+                    </div>
+                  </div>
+                  <div>
+                    <span className="font-bold">{t('ctrl.actual_juz')}:</span>{" "}
+                    {dyn ? `${dyn.dynamicJuzStart}-${dyn.dynamicJuzEnd}` : `${todaySchedule.juzStart}-${todaySchedule.juzEnd}`}
+                    {dyn?.differsFromPlan && (
+                      <span className="text-xs text-blue-600 dark:text-blue-400 ms-2">
+                        ({t('ctrl.adjusted')})
+                      </span>
+                    )}
+                  </div>
+                  <div>
+                    <span className="font-bold">{t('ctrl.time')}:</span> {todaySchedule.time}
+                  </div>
+                  <div>
+                    <span className="font-bold">{t('ctrl.surahs')}:</span>{" "}
+                    <span className="font-quran-arabic text-xl">{todaySchedule.surahArabic}</span>
+                  </div>
                 </div>
-              </div>
-              <div>
-                <span className="font-bold">{t('ctrl.time')}:</span> {todaySchedule.time}
-              </div>
-              <div className="col-span-2">
-                <span className="font-bold">{t('ctrl.surahs')}:</span>{" "}
-                <span className="font-quran-arabic text-xl">{todaySchedule.surahArabic}</span>
-                <br />
-                <span className="text-sm">{todaySchedule.surahEnglish}</span>
-              </div>
-            </div>
+              );
+            })()}
 
             {todaySchedule.isKhatma && (
               <div className="win-box bg-gradient-to-r from-yellow-400 to-yellow-600 text-black p-3">
@@ -285,23 +322,11 @@ export default function ControllerDashboard() {
               </div>
             )}
 
-            {todaySchedule.actualJuzStart && (
+            {todaySchedule.stoppedAtJuz != null && (
               <div className="win-box bg-blue-100 dark:bg-blue-900 p-3">
-                <strong>{t('ctrl.actual_progress')}:</strong> {t('ctrl.juz')} {todaySchedule.actualJuzStart}
-                {todaySchedule.actualJuzEnd && todaySchedule.actualJuzEnd !== todaySchedule.actualJuzStart
-                  ? `-${todaySchedule.actualJuzEnd}`
-                  : ""}
-              </div>
-            )}
-
-            {status && (status.currentSurahEnglish !== "Al-Fatiha" || status.currentJuz !== 1 || status.currentAyah !== 1) && (
-              <div className="win-box bg-green-100 dark:bg-green-900 p-3">
-                <strong>{t('ctrl.current_progress')}:</strong>
-                <div className="mt-1">
-                  <span className="font-quran-arabic text-lg">{status.currentSurahArabic}</span> ({status.currentSurahEnglish})
-                  <br />
-                  <span className="text-sm">{t('ctrl.juz')} {status.currentJuz}, {t('ctrl.ayah')} {status.currentAyah}</span>
-                </div>
+                <strong>✅ {t('ctrl.recorded')}:</strong>{" "}
+                {t('ctrl.juz')} {todaySchedule.stoppedAtJuz}
+                {todaySchedule.completedLastJuz ? ` (${t('ctrl.completed')})` : ` (${t('ctrl.partial')})`}
               </div>
             )}
 
@@ -312,7 +337,7 @@ export default function ControllerDashboard() {
               >
                 {todaySchedule.isKhatma ? t('ctrl.unmark_khatma') : t('ctrl.mark_khatma')}
               </button>
-              
+
               <button
                 onClick={() => {
                   setExceptionNote(todaySchedule.exceptionNote || "");
@@ -329,47 +354,44 @@ export default function ControllerDashboard() {
         )}
       </WindowBox>
 
-      {/* Record Progress */}
+      {/* Record Where Reading Stopped */}
       <WindowBox title={t('ctrl.record_title')}>
-        <form onSubmit={handleUpdateProgress} className="space-y-4">
+        <form onSubmit={handleRecordStopping} className="space-y-4">
           <p className="text-sm text-gray-600 dark:text-gray-400">
-            {t('ctrl.record_desc')}
+            {t('ctrl.record_stop_desc')}
           </p>
 
           <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+            {/* Select Day */}
             <div>
-              <label className="block font-bold mb-1">{t('ctrl.stopped_surah')}:</label>
+              <label className="block font-bold mb-1">{t('ctrl.select_day')}:</label>
               <select
-                value={progressForm.stoppedAtSurah}
-                onChange={(e) =>
-                  setProgressForm({
-                    ...progressForm,
-                    stoppedAtSurah: Number(e.target.value),
-                  })
-                }
+                value={selectedDayId}
+                onChange={(e) => handleDaySelect(e.target.value)}
                 className="win-select w-full"
               >
-                {surahsInSelectedJuz.map((surah) => (
-                  <option key={surah.number} value={surah.number}>
-                    {surah.number}. {surah.english}
-                  </option>
-                ))}
+                <option value="">{t('ctrl.select_day_placeholder')}</option>
+                {allSchedules.map((s) => {
+                  const dateStr = new Date(s.date).toLocaleDateString(locale === 'ar' ? 'ar-SA' : 'en-US', {
+                    month: 'short',
+                    day: 'numeric',
+                  });
+                  return (
+                    <option key={s.id} value={s.id}>
+                      {t('home.day')} {s.ramadanDayNumber} - {dateStr}
+                      {s.stoppedAtJuz != null ? " ✅" : ""}
+                    </option>
+                  );
+                })}
               </select>
             </div>
 
+            {/* Stopped At Juz */}
             <div>
               <label className="block font-bold mb-1">{t('ctrl.stopped_juz')}:</label>
               <select
-                value={progressForm.stoppedAtJuz}
-                onChange={(e) => {
-                  const newJuz = Number(e.target.value);
-                  const surahsInJuz = SURAHS.filter(s => s.juz === newJuz);
-                  setProgressForm({
-                    ...progressForm,
-                    stoppedAtJuz: newJuz,
-                    stoppedAtSurah: surahsInJuz.length > 0 ? surahsInJuz[0].number : 1,
-                  });
-                }}
+                value={stoppedAtJuz}
+                onChange={(e) => setStoppedAtJuz(Number(e.target.value))}
                 className="win-select w-full"
               >
                 {Array.from({ length: 30 }, (_, i) => i + 1).map((juz) => (
@@ -380,25 +402,60 @@ export default function ControllerDashboard() {
               </select>
             </div>
 
+            {/* Completed? */}
             <div>
-              <label className="block font-bold mb-1">{t('ctrl.stopped_ayah')}:</label>
-              <input
-                type="number"
-                min="1"
-                value={progressForm.stoppedAtAyah}
-                onChange={(e) =>
-                  setProgressForm({
-                    ...progressForm,
-                    stoppedAtAyah: Number(e.target.value),
-                  })
-                }
-                className="win-input w-full"
-              />
+              <label className="block font-bold mb-1">{t('ctrl.completed_juz_label')}:</label>
+              <div className="flex gap-3 mt-2">
+                <label className="flex items-center gap-2 cursor-pointer">
+                  <input
+                    type="radio"
+                    name="completedLastJuz"
+                    checked={completedLastJuz === true}
+                    onChange={() => setCompletedLastJuz(true)}
+                  />
+                  <span>{t('common.yes')}</span>
+                </label>
+                <label className="flex items-center gap-2 cursor-pointer">
+                  <input
+                    type="radio"
+                    name="completedLastJuz"
+                    checked={completedLastJuz === false}
+                    onChange={() => setCompletedLastJuz(false)}
+                  />
+                  <span>{t('common.no')}</span>
+                </label>
+              </div>
             </div>
           </div>
 
-          <button type="submit" className="win-button">
-            {t('ctrl.save_progress')}
+          {/* Preview */}
+          {selectedDayId && (
+            <div className="win-box bg-secondary p-3 text-sm">
+              <strong>{t('ctrl.preview')}:</strong>{" "}
+              {(() => {
+                const schedule = allSchedules.find(s => s.id === selectedDayId);
+                if (!schedule) return null;
+                const dayNum = schedule.ramadanDayNumber;
+                const displayEnd = stoppedAtJuz;
+                const dyn = getDynamic(selectedDayId);
+                const displayStart = dyn?.dynamicJuzStart || schedule.juzStart;
+                const nextStart = completedLastJuz ? stoppedAtJuz + 1 : stoppedAtJuz;
+                return (
+                  <span>
+                    {t('home.day')} {dayNum}: {t('ctrl.juz')} {displayStart}-{displayEnd}
+                    {dayNum < 30 && (
+                      <span className="ms-3 text-muted-foreground">
+                        → {t('home.day')} {dayNum + 1} {t('ctrl.starts_from')} {t('ctrl.juz')} {Math.min(nextStart, 30)}
+                      </span>
+                    )}
+                  </span>
+                );
+              })()}
+            </div>
+          )}
+
+          <button type="submit" className="win-button" disabled={!selectedDayId}>
+            {t('ctrl.save_recording')}
           </button>
         </form>
       </WindowBox>
@@ -443,56 +500,89 @@ export default function ControllerDashboard() {
         </div>
       )}
 
-      {/* All Schedules Overview */}
+      {/* Full Schedule with Dynamic View */}
       <WindowBox title={t('ctrl.full_schedule')}>
-        {allSchedules.length > 0 ? (
+        {dynamicSchedules.length > 0 ? (
           <div className="overflow-x-auto">
             <table className="win-table text-sm">
               <thead>
                 <tr>
                   <th>{t('ctrl.day_col')}</th>
                   <th>{t('ctrl.date_col')}</th>
-                  <th>{t('ctrl.juz_col')}</th>
-                  <th>{t('ctrl.surahs_col')}</th>
-                  <th>{t('ctrl.time_col')}</th>
+                  <th>{t('ctrl.planned_juz')}</th>
+                  <th>{t('ctrl.actual_juz')}</th>
+                  <th className="hidden sm:table-cell">{t('ctrl.surahs_col')}</th>
                   <th>{t('ctrl.status_col')}</th>
                   <th>{t('ctrl.actions_col')}</th>
                 </tr>
               </thead>
               <tbody>
-                {allSchedules.map((schedule) => (
-                  <tr key={schedule.id} className={schedule.isKhatma ? "bg-yellow-100 dark:bg-yellow-900" : ""}>
-                    <td className="font-bold">{t('ctrl.day_col')} {schedule.ramadanDayNumber}</td>
-                    <td>{new Date(schedule.date).toLocaleDateString(locale === 'ar' ? 'ar-SA' : 'en-US')}</td>
-                    <td>
-                      {schedule.juzStart}-{schedule.juzEnd}
-                      <div className="text-xs text-gray-600 dark:text-gray-400">
-                        {getJuzName(schedule.juzStart)?.english}
-                      </div>
-                    </td>
-                    <td>
-                      <span className="font-quran-arabic">{schedule.surahArabic}</span>
-                      <br />
-                      <span className="text-xs">{schedule.surahEnglish}</span>
-                    </td>
-                    <td>{schedule.time}</td>
-                    <td>
-                      {schedule.isKhatma && <span className="text-yellow-600">⭐ الختمة</span>}
-                      {schedule.exceptionNote && <span className="text-orange-600">⚠️</span>}
-                    </td>
-                    <td>
-                      <button
-                        onClick={() => handleToggleKhatmaForDay(schedule.id, schedule.isKhatma)}
-                        className={`win-button text-xs ${
-                          schedule.isKhatma ? "bg-yellow-500" : ""
-                        }`}
-                        title={schedule.isKhatma ? "Unmark as الختمة" : "Mark as الختمة"}
-                      >
-                        {schedule.isKhatma ? "⭐ ✓" : "⭐"}
-                      </button>
-                    </td>
-                  </tr>
-                ))}
+                {dynamicSchedules.map((schedule) => {
+                  const isToday = (() => {
+                    const today = new Date();
+                    today.setHours(0, 0, 0, 0);
+                    const scheduleDate = new Date(schedule.date);
+                    scheduleDate.setHours(0, 0, 0, 0);
+                    return scheduleDate.getTime() === today.getTime();
+                  })();
+
+                  return (
+                    <tr
+                      key={schedule.id}
+                      className={`${isToday ? "bg-primary/20" : ""} ${schedule.isRecorded ? "bg-green-50 dark:bg-green-950" : ""}`}
+                    >
+                      <td className="font-bold whitespace-nowrap">
+                        {t('home.day')} {schedule.ramadanDayNumber}
+                        {isToday && (
+                          <span className="ms-1 text-xs bg-primary text-primary-foreground px-1">
+                            {t('calendar.today')}
+                          </span>
+                        )}
+                      </td>
+                      <td className="whitespace-nowrap">
+                        {new Date(schedule.date).toLocaleDateString(locale === 'ar' ? 'ar-SA' : 'en-US', {
+                          month: 'short',
+                          day: 'numeric',
+                        })}
+                      </td>
+                      <td className="text-muted-foreground">
+                        {schedule.juzStart}-{schedule.juzEnd}
+                      </td>
+                      <td className={schedule.differsFromPlan ? "font-bold text-blue-600 dark:text-blue-400" : ""}>
+                        {schedule.dynamicJuzStart}-{schedule.dynamicJuzEnd}
+                        {schedule.isRecorded && <span className="ms-1">✅</span>}
+                      </td>
+                      <td className="hidden sm:table-cell">
+                        <span className="font-quran-arabic">{schedule.surahArabic}</span>
+                      </td>
+                      <td>
+                        {schedule.isKhatma && <span className="text-yellow-600">⭐</span>}
+                        {schedule.exceptionNote && <span className="text-orange-600 ms-1">⚠️</span>}
+                        {schedule.differsFromPlan && !schedule.isRecorded && (
+                          <span className="text-blue-500 ms-1" title={t('ctrl.adjusted')}>↻</span>
+                        )}
+                      </td>
+                      <td className="space-x-1">
+                        <button
+                          onClick={() => handleToggleKhatmaForDay(schedule.id, schedule.isKhatma)}
+                          className={`win-button text-xs ${schedule.isKhatma ? "bg-yellow-500" : ""}`}
+                          title={schedule.isKhatma ? "Unmark الختمة" : "Mark الختمة"}
+                        >
+                          ⭐
+                        </button>
+                        {schedule.isRecorded && (
+                          <button
+                            onClick={() => handleClearRecording(schedule.id)}
+                            className="win-button text-xs"
+                            title={t('ctrl.clear_recording')}
+                          >
+                            ✕
+                          </button>
+                        )}
+                      </td>
+                    </tr>
+                  );
+                })}
               </tbody>
             </table>
           </div>

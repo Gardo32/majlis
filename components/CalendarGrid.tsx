@@ -5,24 +5,14 @@ import { useState } from "react";
 import { WindowBox } from "./WindowBox";
 import { useLanguage } from "./LanguageProvider";
 import { getSurahsInJuzRange, getJuzName } from "@/lib/surah-data";
-
-interface ScheduleItem {
-  id: string;
-  date: Date;
-  ramadanDayNumber: number;
-  surahArabic: string;
-  surahEnglish: string;
-  juzStart: number;
-  juzEnd: number;
-  time: string;
-}
+import type { DynamicScheduleEntry } from "@/lib/schedule-utils";
 
 interface CalendarGridProps {
-  schedules: ScheduleItem[];
+  schedules: DynamicScheduleEntry[];
 }
 
 export function CalendarGrid({ schedules }: CalendarGridProps) {
-  const [selectedDay, setSelectedDay] = useState<ScheduleItem | null>(null);
+  const [selectedDay, setSelectedDay] = useState<DynamicScheduleEntry | null>(null);
   const { t, locale } = useLanguage();
 
   // Saturday-first week: Sat=0, Sun=1, Mon=2, Tue=3, Wed=4, Thu=5, Fri=6
@@ -66,7 +56,7 @@ export function CalendarGrid({ schedules }: CalendarGridProps) {
           {emptyCells.map((_, index) => (
             <div key={`empty-${index}`} className="border-2 border-border bg-muted/30 min-h-[120px]"></div>
           ))}
-          
+
           {schedules.map((schedule) => (
             <CalendarDay
               key={schedule.id}
@@ -100,31 +90,27 @@ export function CalendarGrid({ schedules }: CalendarGridProps) {
               </div>
 
               <div>
-                <div className="font-bold mb-1">{t('calendar.surah_ar_col')}:</div>
-                <div className="font-quran-arabic rtl text-2xl">
-                  {selectedDay.surahArabic}
-                </div>
-              </div>
-
-              <div>
-                <div className="font-bold mb-1">{t('calendar.surah_en_col')}:</div>
-                <div className="font-surah-english text-xl">
-                  {selectedDay.surahEnglish}
-                </div>
-              </div>
-
-              <div>
-                <div className="font-bold mb-1">{t('calendar.juz_range')}:</div>
+                <div className="font-bold mb-1">{t('calendar.actual_juz')}:</div>
                 <div>
-                  {t('home.juz')} {selectedDay.juzStart}
-                  {selectedDay.juzStart !== selectedDay.juzEnd
-                    ? ` - ${selectedDay.juzEnd}`
+                  {t('home.juz')} {selectedDay.dynamicJuzStart}
+                  {selectedDay.dynamicJuzStart !== selectedDay.dynamicJuzEnd
+                    ? ` - ${selectedDay.dynamicJuzEnd}`
                     : ""}
                   {(() => {
-                    const jn = getJuzName(selectedDay.juzStart);
+                    const jn = getJuzName(selectedDay.dynamicJuzStart);
                     return jn ? ` (${locale === 'ar' ? jn.arabic : jn.english})` : '';
                   })()}
                 </div>
+                {selectedDay.differsFromPlan && (
+                  <div className="text-sm text-blue-600 dark:text-blue-400 mt-1">
+                    {t('calendar.planned')}: {t('home.juz')} {selectedDay.juzStart}-{selectedDay.juzEnd}
+                  </div>
+                )}
+                {selectedDay.isRecorded && (
+                  <div className="text-sm text-green-600 dark:text-green-400 mt-1">
+                    ✅ {t('ctrl.recorded')}
+                  </div>
+                )}
               </div>
 
               <div>
@@ -136,7 +122,7 @@ export function CalendarGrid({ schedules }: CalendarGridProps) {
               <div className="col-span-1 sm:col-span-2">
                 <div className="font-bold mb-2">{t('home.surah')}:</div>
                 <div className="flex flex-wrap gap-2">
-                  {getSurahsInJuzRange(selectedDay.juzStart, selectedDay.juzEnd).map((s) => (
+                  {getSurahsInJuzRange(selectedDay.dynamicJuzStart, selectedDay.dynamicJuzEnd).map((s) => (
                     <span key={s.number} className="text-xs border border-border px-2 py-1 bg-muted">
                       {s.arabic} - {s.english}
                     </span>

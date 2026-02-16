@@ -82,6 +82,8 @@ model Schedule {
   exceptionNote   String?
   actualJuzStart  Int?
   actualJuzEnd    Int?
+  stoppedAtJuz    Float?
+  completedLastJuz Boolean?
   createdAt       DateTime @default(now())
   updatedAt       DateTime @updatedAt
   

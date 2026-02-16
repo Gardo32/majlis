@@ -48,9 +48,6 @@ export function HeaderNav({ user }: HeaderNavProps) {
             <Link href="/calendar" className="win-button text-sm">
               📅 {t('nav.calendar')}
             </Link>
-            <Link href="/progress" className="win-button text-sm">
-              📊 {t('nav.progress')}
-            </Link>
             <Link href="/radio" className="win-button text-sm">
               📻 {t('nav.radio')}
             </Link>
@@ -91,9 +88,6 @@ export function HeaderNav({ user }: HeaderNavProps) {
             </Link>
             <Link href="/calendar" className="win-button text-sm py-2 text-center" onClick={() => setMenuOpen(false)}>
               📅 {t('nav.calendar')}
-            </Link>
-            <Link href="/progress" className="win-button text-sm py-2 text-center" onClick={() => setMenuOpen(false)}>
-              📊 {t('nav.progress')}
             </Link>
             <Link href="/radio" className="win-button text-sm py-2 text-center" onClick={() => setMenuOpen(false)}>
               📻 {t('nav.radio')}

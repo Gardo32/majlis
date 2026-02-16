@@ -9,7 +9,7 @@ export function middleware(request: NextRequest) {
   const isLoggedIn = !!sessionToken;
 
   // Public routes - no protection needed
-  const publicRoutes = ["/", "/calendar", "/progress", "/radio", "/login"];
+  const publicRoutes = ["/", "/calendar", "/radio", "/login"];
   if (publicRoutes.includes(pathname)) {
     return NextResponse.next();
   }
