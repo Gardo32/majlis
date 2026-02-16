@@ -44,18 +44,8 @@ export function LanguageProvider({ children }: { children: ReactNode }) {
     }, [locale]);
 
     const t = (key: string): string => {
-        const keys = key.split('.');
-        let value: any = dictionary[locale];
-
-        for (const k of keys) {
-            if (value && typeof value === 'object' && k in value) {
-                value = value[k as keyof typeof value];
-            } else {
-                return key; // Return key if not found
-            }
-        }
-
-        return typeof value === 'string' ? value : key;
+        const dict = dictionary[locale] as Record<string, string>;
+        return dict[key] ?? key;
     };
 
     return (

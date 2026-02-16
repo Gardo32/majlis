@@ -39,7 +39,7 @@ export function HomePageContent({ todaySchedule, status }: HomePageContentProps)
             </WindowBox>
 
             {/* Live Status + Radio Link */}
-            <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+            <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
                 <WindowBox title={t('home.live_status')}>
                     <div className="flex flex-col items-center justify-center space-y-3 py-2">
                         <LiveIndicator isLive={status.isLive} />
@@ -57,7 +57,7 @@ export function HomePageContent({ todaySchedule, status }: HomePageContentProps)
                     </div>
                 </WindowBox>
 
-                <div className="md:col-span-2">
+                <div className="sm:col-span-2">
                     <WindowBox title={`📻 ${t('home.listen_live')}`}>
                         <div className="text-center space-y-4 py-4">
                             <p className="text-muted-foreground">

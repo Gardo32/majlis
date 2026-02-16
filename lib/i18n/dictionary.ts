@@ -1,5 +1,7 @@
 export type Locale = 'ar' | 'en';
 
+// Arabic is the default locale because the primary audience for this app is Arabic-speaking.
+// Adjust this default (e.g. to 'en') when deploying to a different primary language audience.
 export const defaultLocale: Locale = 'ar';
 
 export const dictionary = {

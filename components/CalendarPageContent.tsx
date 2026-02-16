@@ -65,7 +65,8 @@ export function CalendarPageContent({ schedules }: { schedules: ScheduleItem[] }
                 </WindowBox>
             )}
 
-            {/* Schedule Table View */}
+            {/* Schedule Table View - hidden on mobile since list view above is used */}
+            <div className="hidden md:block">
             <WindowBox title={t('calendar.table_view')}>
                 {schedules.length > 0 ? (
                     <div className="overflow-x-auto">
@@ -129,6 +130,7 @@ export function CalendarPageContent({ schedules }: { schedules: ScheduleItem[] }
                     </p>
                 )}
             </WindowBox>
+            </div>
         </div>
     );
 }

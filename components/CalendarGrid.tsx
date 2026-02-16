@@ -35,31 +35,46 @@ export function CalendarGrid({ schedules }: CalendarGridProps) {
 
   return (
     <div className="space-y-4">
-      {/* Day Headers */}
-      <div className="grid grid-cols-7 gap-0">
-        {dayKeys.map((key) => (
-          <div
-            key={key}
-            className="bg-secondary text-secondary-foreground border-2 border-border p-1 sm:p-2 text-center font-bold text-xs sm:text-sm"
-          >
-            {t(key)}
-          </div>
-        ))}
-      </div>
-
-      {/* Calendar Grid */}
-      <div className="grid grid-cols-7 gap-0">
-        {emptyCells.map((_, index) => (
-          <div key={`empty-${index}`} className="border-2 border-border bg-muted/30 min-h-[80px] sm:min-h-[120px]"></div>
-        ))}
-        
+      {/* === MOBILE: Vertical scrollable list === */}
+      <div className="block md:hidden space-y-1">
         {schedules.map((schedule) => (
           <CalendarDay
             key={schedule.id}
             schedule={schedule}
             onClick={() => setSelectedDay(schedule)}
+            listMode
           />
         ))}
+      </div>
+
+      {/* === DESKTOP: 7-column grid === */}
+      <div className="hidden md:block">
+        {/* Day Headers */}
+        <div className="grid grid-cols-7 gap-0">
+          {dayKeys.map((key) => (
+            <div
+              key={key}
+              className="bg-secondary text-secondary-foreground border-2 border-border p-2 text-center font-bold text-sm"
+            >
+              {t(key)}
+            </div>
+          ))}
+        </div>
+
+        {/* Calendar Grid */}
+        <div className="grid grid-cols-7 gap-0">
+          {emptyCells.map((_, index) => (
+            <div key={`empty-${index}`} className="border-2 border-border bg-muted/30 min-h-[120px]"></div>
+          ))}
+          
+          {schedules.map((schedule) => (
+            <CalendarDay
+              key={schedule.id}
+              schedule={schedule}
+              onClick={() => setSelectedDay(schedule)}
+            />
+          ))}
+        </div>
       </div>
 
       {/* Selected Day Details */}

@@ -20,10 +20,10 @@ export function ThemeToggle() {
     return (
         <button
             onClick={() => setTheme(theme === "dark" ? "light" : "dark")}
-            className="panel-button text-xs font-bold flex items-center gap-1"
-            title="Toggle Theme"
+            className="win-button px-2 py-1 text-xs font-bold"
+            title={theme === "dark" ? t('theme.light') : t('theme.dark')}
         >
-            {theme === "dark" ? t('theme.light') : t('theme.dark')}
+            {theme === "dark" ? "☀️" : "🌙"}
         </button>
     );
 }
