@@ -1,0 +1,217 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+/* Custom Fonts */
+@font-face {
+  font-family: 'v4-surah-name';
+  src: url('https://static-cdn.tarteel.ai/qul/fonts/surah_names_v4/surah_names.ttf') format('truetype');
+  font-display: swap;
+}
+
+@font-face {
+  font-family: 'common-quran-common';
+  src: url('https://static-cdn.tarteel.ai/qul/fonts/common/quran-common.ttf') format('truetype');
+  font-display: swap;
+}
+
+/* Base styles */
+* {
+  box-sizing: border-box;
+}
+
+body {
+  font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+  background-color: #f5f5f5;
+  margin: 0;
+  padding: 0;
+}
+
+/* Windows 95/XP style components */
+.win-box {
+  border: 2px solid #000;
+  background-color: #fff;
+}
+
+.win-box-inset {
+  border: 2px inset #808080;
+  background-color: #fff;
+}
+
+.win-box-outset {
+  border: 2px outset #c0c0c0;
+  background-color: #c0c0c0;
+}
+
+.win-title-bar {
+  background: linear-gradient(to right, #000080, #1084d0);
+  color: white;
+  padding: 4px 8px;
+  font-weight: bold;
+  font-size: 14px;
+}
+
+.win-title-bar-flat {
+  background-color: #000080;
+  color: white;
+  padding: 4px 8px;
+  font-weight: bold;
+  font-size: 14px;
+}
+
+.win-button {
+  border: 2px outset #c0c0c0;
+  background-color: #c0c0c0;
+  padding: 4px 16px;
+  font-size: 14px;
+  cursor: pointer;
+}
+
+.win-button:hover {
+  background-color: #d4d4d4;
+}
+
+.win-button:active {
+  border: 2px inset #808080;
+}
+
+.win-input {
+  border: 2px inset #808080;
+  padding: 4px 8px;
+  font-size: 14px;
+  background-color: #fff;
+}
+
+.win-select {
+  border: 2px inset #808080;
+  padding: 4px 8px;
+  font-size: 14px;
+  background-color: #fff;
+}
+
+/* Progress bar Windows style */
+.win-progress-container {
+  border: 2px inset #808080;
+  background-color: #fff;
+  padding: 2px;
+}
+
+.win-progress-bar {
+  background-color: #000080;
+  height: 20px;
+}
+
+/* Font classes */
+.font-surah-english {
+  font-family: 'v4-surah-name', serif;
+}
+
+.font-quran-arabic {
+  font-family: 'common-quran-common', serif;
+}
+
+/* Calendar grid */
+.calendar-grid {
+  display: grid;
+  grid-template-columns: repeat(7, 1fr);
+  gap: 0;
+}
+
+.calendar-cell {
+  border: 1px solid #000;
+  min-height: 100px;
+  padding: 8px;
+  background-color: #fff;
+}
+
+.calendar-cell.today {
+  background-color: #90ee90;
+  border: 2px solid #000;
+}
+
+.calendar-cell.past {
+  background-color: #e8e8e8;
+}
+
+.calendar-cell.future {
+  background-color: #fff;
+}
+
+/* RTL support for Arabic */
+.rtl {
+  direction: rtl;
+  text-align: right;
+}
+
+/* Scrollbar Windows style */
+::-webkit-scrollbar {
+  width: 16px;
+}
+
+::-webkit-scrollbar-track {
+  background: #c0c0c0;
+}
+
+::-webkit-scrollbar-thumb {
+  background: #808080;
+  border: 2px outset #c0c0c0;
+}
+
+::-webkit-scrollbar-thumb:hover {
+  background: #606060;
+}
+
+/* Status bar */
+.win-status-bar {
+  border: 2px inset #808080;
+  background-color: #c0c0c0;
+  padding: 2px 8px;
+  font-size: 12px;
+}
+
+/* Table styles */
+.win-table {
+  border-collapse: collapse;
+  width: 100%;
+}
+
+.win-table th {
+  background-color: #c0c0c0;
+  border: 2px outset #c0c0c0;
+  padding: 8px;
+  text-align: left;
+  font-weight: bold;
+}
+
+.win-table td {
+  border: 1px solid #808080;
+  padding: 8px;
+  background-color: #fff;
+}
+
+.win-table tr:hover td {
+  background-color: #e8e8e8;
+}
+
+/* Live indicator */
+.live-indicator {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+}
+
+.live-dot {
+  width: 10px;
+  height: 10px;
+  background-color: #ff0000;
+  border: 1px solid #800000;
+}
+
+.live-dot.active {
+  animation: blink 1s infinite;
+}
+
+@keyframes blink {
+  0%, 50% { opacity: 1; }
+  51%, 100% { opacity: 0.3; }
+}
