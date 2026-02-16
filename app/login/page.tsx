@@ -27,13 +27,14 @@ export default function LoginPage() {
 
       if (result.error) {
         setError(result.error.message || t('auth.error'));
+        setLoading(false);
       } else {
-        router.push("/dashboard");
-        router.refresh();
+        // Wait a moment for cookie to be set properly
+        await new Promise(resolve => setTimeout(resolve, 300));
+        window.location.href = "/dashboard";
       }
     } catch (err) {
       setError(t('common.error'));
-    } finally {
       setLoading(false);
     }
   };

@@ -5,12 +5,27 @@ import prisma from "@/lib/prisma";
 export const auth = betterAuth({
   secret: process.env.BETTER_AUTH_SECRET,
   baseURL: process.env.NEXT_PUBLIC_APP_URL || "http://localhost:3000",
+  trustedOrigins: process.env.NEXT_PUBLIC_APP_URL 
+    ? [process.env.NEXT_PUBLIC_APP_URL]
+    : ["http://localhost:3000"],
   database: prismaAdapter(prisma, {
     provider: "mongodb",
   }),
   advanced: {
     database: {
       generateId: false,
+    },
+    useSecureCookies: process.env.NODE_ENV === "production",
+    cookies: {
+      sessionToken: {
+        name: "better-auth.session_token",
+        options: {
+          httpOnly: true,
+          sameSite: "lax",
+          path: "/",
+          secure: process.env.NODE_ENV === "production",
+        },
+      },
     },
   },
   emailAndPassword: {
