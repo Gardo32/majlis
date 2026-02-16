@@ -3,10 +3,16 @@ import { headers } from "next/headers";
 import prisma from "@/lib/prisma";
 
 export async function getSession() {
-  const session = await auth.api.getSession({
-    headers: await headers(),
-  });
-  return session;
+  try {
+    const session = await auth.api.getSession({
+      headers: await headers(),
+    });
+    console.log("Session check:", session ? "Valid session found" : "No session");
+    return session;
+  } catch (error) {
+    console.error("Session validation error:", error);
+    return null;
+  }
 }
 
 export async function getUser() {

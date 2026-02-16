@@ -25,15 +25,20 @@ export default function LoginPage() {
         password,
       });
 
+      console.log("Sign in result:", result);
+
       if (result.error) {
+        console.error("Sign in error:", result.error);
         setError(result.error.message || t('auth.error'));
         setLoading(false);
       } else {
+        console.log("Sign in successful, redirecting...");
         // Wait a moment for cookie to be set properly
         await new Promise(resolve => setTimeout(resolve, 300));
         window.location.href = "/dashboard";
       }
     } catch (err) {
+      console.error("Sign in exception:", err);
       setError(t('common.error'));
       setLoading(false);
     }
