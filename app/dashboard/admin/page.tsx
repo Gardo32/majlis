@@ -2,6 +2,7 @@
 
 import { useState, useEffect } from "react";
 import { WindowBox } from "@/components/WindowBox";
+import { useLanguage } from "@/components/LanguageProvider";
 
 interface User {
   id: string;
@@ -14,6 +15,7 @@ interface User {
 const ROLES = ["USER", "MAJLIS_CONTROLLER", "MAJLIS", "ADMIN", "CUSTOM_ROLE"];
 
 export default function AdminDashboard() {
+  const { t } = useLanguage();
   const [users, setUsers] = useState<User[]>([]);
   const [loading, setLoading] = useState(true);
   const [message, setMessage] = useState("");
@@ -58,10 +60,10 @@ export default function AdminDashboard() {
         const data = await res.json();
         setUsers(data);
       } else if (res.status === 403) {
-        setError("Access denied. Admin privileges required.");
+        setError(t('admin.access_denied'));
       }
     } catch (err) {
-      setError("Failed to load users");
+      setError(t('common.error'));
     } finally {
       setLoading(false);
     }
@@ -80,20 +82,20 @@ export default function AdminDashboard() {
       });
 
       if (res.ok) {
-        setMessage("Ramadan start date updated successfully");
+        setMessage(t('admin.date_updated'));
       } else {
         const data = await res.json();
-        setError(data.error || "Failed to update settings");
+        setError(data.error || t('common.error'));
       }
     } catch (err) {
-      setError("Failed to update settings");
+      setError(t('common.error'));
     } finally {
       setSettingsLoading(false);
     }
   };
 
   const handleRegenerateCalendar = async () => {
-    if (!confirm("This will delete all existing schedules and generate a new 30-day calendar. Continue?")) {
+    if (!confirm(t('admin.regenerate_confirm'))) {
       return;
     }
 
@@ -110,13 +112,13 @@ export default function AdminDashboard() {
 
       if (res.ok) {
         const data = await res.json();
-        setMessage(`Calendar regenerated successfully! Created ${data.count} schedules.`);
+        setMessage(`${t('admin.calendar_regenerated')} ${data.count}`);
       } else {
         const data = await res.json();
-        setError(data.error || "Failed to regenerate calendar");
+        setError(data.error || t('common.error'));
       }
     } catch (err) {
-      setError("Failed to regenerate calendar");
+      setError(t('common.error'));
     } finally {
       setSettingsLoading(false);
     }
@@ -134,7 +136,7 @@ export default function AdminDashboard() {
       });
 
       if (res.ok) {
-        setMessage("User created successfully");
+        setMessage(t('admin.user_created'));
         fetchUsers();
         setNewUser({
           name: "",
@@ -144,10 +146,10 @@ export default function AdminDashboard() {
         });
       } else {
         const data = await res.json();
-        setError(data.error || "Failed to create user");
+        setError(data.error || t('common.error'));
       }
     } catch (err) {
-      setError("Failed to create user");
+      setError(t('common.error'));
     }
   };
 
@@ -166,21 +168,21 @@ export default function AdminDashboard() {
       });
 
       if (res.ok) {
-        setMessage("User updated successfully");
+        setMessage(t('admin.user_updated'));
         setEditingId(null);
         setEditUser(null);
         fetchUsers();
       } else {
         const data = await res.json();
-        setError(data.error || "Failed to update user");
+        setError(data.error || t('common.error'));
       }
     } catch (err) {
-      setError("Failed to update user");
+      setError(t('common.error'));
     }
   };
 
   const handleDeleteUser = async (id: string) => {
-    if (!confirm("Are you sure you want to delete this user?")) return;
+    if (!confirm(t('admin.delete_confirm'))) return;
 
     setMessage("");
     setError("");
@@ -191,30 +193,30 @@ export default function AdminDashboard() {
       });
 
       if (res.ok) {
-        setMessage("User deleted successfully");
+        setMessage(t('admin.user_deleted'));
         fetchUsers();
       } else {
         const data = await res.json();
-        setError(data.error || "Failed to delete user");
+        setError(data.error || t('common.error'));
       }
     } catch (err) {
-      setError("Failed to delete user");
+      setError(t('common.error'));
     }
   };
 
   if (loading) {
     return (
-      <WindowBox title="Loading...">
-        <div className="text-center py-8">Loading admin panel...</div>
+      <WindowBox title={t('common.loading')}>
+        <div className="text-center py-8">{t('common.loading')}</div>
       </WindowBox>
     );
   }
 
   return (
     <div className="space-y-4">
-      <WindowBox title="👥 Admin Dashboard - User Management">
+      <WindowBox title={t('admin.title')}>
         <p className="text-sm text-gray-600">
-          Create, edit, and manage user accounts and roles.
+          {t('admin.desc')}
         </p>
       </WindowBox>
 
@@ -231,10 +233,10 @@ export default function AdminDashboard() {
       )}
 
       {/* Ramadan Settings */}
-      <WindowBox title="📅 Ramadan Calendar Settings">
+      <WindowBox title={t('admin.ramadan_settings')}>
         <form onSubmit={handleUpdateSettings} className="space-y-4">
           <div>
-            <label className="block font-bold mb-1">Ramadan Start Date:</label>
+            <label className="block font-bold mb-1">{t('admin.ramadan_start')}</label>
             <input
               type="date"
               value={ramadanStartDate}
@@ -243,7 +245,7 @@ export default function AdminDashboard() {
               required
             />
             <p className="text-sm text-gray-600 dark:text-gray-400 mt-1">
-              The first day of Ramadan. Calendar automatically generates 30 days from this date.
+              {t('admin.ramadan_start_desc')}
             </p>
           </div>
 
@@ -253,7 +255,7 @@ export default function AdminDashboard() {
               className="win-button"
               disabled={settingsLoading}
             >
-              💾 Save Start Date
+              {t('admin.save_date')}
             </button>
 
             <button
@@ -262,23 +264,22 @@ export default function AdminDashboard() {
               className="win-button bg-orange-200 hover:bg-orange-300 dark:bg-orange-800"
               disabled={settingsLoading}
             >
-              🔄 Regenerate Full Calendar (30 Days)
+              {t('admin.regenerate')}
             </button>
           </div>
 
           <div className="win-box bg-yellow-50 dark:bg-yellow-950 p-3 text-sm text-yellow-800 dark:text-yellow-200">
-            <strong>⚠️ Warning:</strong> Regenerating the calendar will delete all existing schedules
-            and create a new 30-day schedule with 2 juz per day, completing the Quran twice.
+            <strong>⚠️</strong> {t('admin.regenerate_warn')}
           </div>
         </form>
       </WindowBox>
 
       {/* Create New User */}
-      <WindowBox title="➕ Create New User">
+      <WindowBox title={t('admin.create_user')}>
         <form onSubmit={handleCreateUser} className="space-y-4">
           <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
             <div>
-              <label className="block font-bold mb-1">Name:</label>
+              <label className="block font-bold mb-1">{t('admin.name')}</label>
               <input
                 type="text"
                 value={newUser.name}
@@ -291,7 +292,7 @@ export default function AdminDashboard() {
             </div>
 
             <div>
-              <label className="block font-bold mb-1">Email:</label>
+              <label className="block font-bold mb-1">{t('admin.email')}</label>
               <input
                 type="email"
                 value={newUser.email}
@@ -304,7 +305,7 @@ export default function AdminDashboard() {
             </div>
 
             <div>
-              <label className="block font-bold mb-1">Password:</label>
+              <label className="block font-bold mb-1">{t('admin.password')}</label>
               <input
                 type="password"
                 value={newUser.password}
@@ -317,7 +318,7 @@ export default function AdminDashboard() {
             </div>
 
             <div>
-              <label className="block font-bold mb-1">Role:</label>
+              <label className="block font-bold mb-1">{t('admin.role')}</label>
               <select
                 value={newUser.role}
                 onChange={(e) =>
@@ -335,23 +336,23 @@ export default function AdminDashboard() {
           </div>
 
           <button type="submit" className="win-button">
-            ➕ Create User
+            {t('admin.create_btn')}
           </button>
         </form>
       </WindowBox>
 
       {/* Existing Users */}
-      <WindowBox title="📋 Existing Users">
+      <WindowBox title={t('admin.users_list')}>
         {users.length > 0 ? (
           <div className="overflow-x-auto">
             <table className="win-table">
               <thead>
                 <tr>
-                  <th>Name</th>
-                  <th>Email</th>
-                  <th>Role</th>
-                  <th>Created</th>
-                  <th>Actions</th>
+                  <th>{t('admin.name_col')}</th>
+                  <th>{t('admin.email_col')}</th>
+                  <th>{t('admin.role_col')}</th>
+                  <th>{t('admin.created_col')}</th>
+                  <th>{t('admin.actions_col')}</th>
                 </tr>
               </thead>
               <tbody>
@@ -400,7 +401,7 @@ export default function AdminDashboard() {
                         <td>
                           <input
                             type="password"
-                            placeholder="New password (optional)"
+                            placeholder={t('admin.new_password')}
                             onChange={(e) =>
                               setEditUser({
                                 ...editUser!,
@@ -469,31 +470,27 @@ export default function AdminDashboard() {
             </table>
           </div>
         ) : (
-          <p className="text-center text-gray-500 py-4">No users found</p>
+          <p className="text-center text-gray-500 py-4">{t('admin.no_users')}</p>
         )}
       </WindowBox>
 
       {/* Role Descriptions */}
-      <WindowBox title="ℹ️ Role Descriptions">
+      <WindowBox title={t('admin.role_info')}>
         <div className="space-y-2 text-sm">
-          <div className="border border-black p-2 bg-gray-50">
-            <strong>USER:</strong> Can view calendar and progress (no login
-            required for public pages)
+          <div className="border border-black dark:border-gray-600 p-2 bg-gray-50 dark:bg-gray-800">
+            <strong>USER:</strong> {t('admin.role_user')}
           </div>
-          <div className="border border-black p-2 bg-gray-50">
-            <strong>MAJLIS_CONTROLLER:</strong> Can create/edit calendar,
-            update progress
+          <div className="border border-black dark:border-gray-600 p-2 bg-gray-50 dark:bg-gray-800">
+            <strong>MAJLIS_CONTROLLER:</strong> {t('admin.role_controller')}
           </div>
-          <div className="border border-black p-2 bg-gray-50">
-            <strong>MAJLIS:</strong> Can update radio stream URL and live
-            status
+          <div className="border border-black dark:border-gray-600 p-2 bg-gray-50 dark:bg-gray-800">
+            <strong>MAJLIS:</strong> {t('admin.role_majlis')}
           </div>
-          <div className="border border-black p-2 bg-gray-50">
-            <strong>ADMIN:</strong> Full system access, can manage users
+          <div className="border border-black dark:border-gray-600 p-2 bg-gray-50 dark:bg-gray-800">
+            <strong>ADMIN:</strong> {t('admin.role_admin')}
           </div>
-          <div className="border border-black p-2 bg-gray-50">
-            <strong>CUSTOM_ROLE:</strong> Configurable permissions (future
-            feature)
+          <div className="border border-black dark:border-gray-600 p-2 bg-gray-50 dark:bg-gray-800">
+            <strong>CUSTOM_ROLE:</strong> {t('admin.role_custom')}
           </div>
         </div>
       </WindowBox>

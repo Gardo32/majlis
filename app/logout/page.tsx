@@ -4,9 +4,11 @@ import { useEffect } from "react";
 import { signOut } from "@/lib/auth-client";
 import { useRouter } from "next/navigation";
 import { WindowBox } from "@/components/WindowBox";
+import { useLanguage } from "@/components/LanguageProvider";
 
 export default function LogoutPage() {
   const router = useRouter();
+  const { t } = useLanguage();
 
   useEffect(() => {
     const handleLogout = async () => {
@@ -19,9 +21,9 @@ export default function LogoutPage() {
 
   return (
     <div className="max-w-md mx-auto mt-8">
-      <WindowBox title="🚪 Logging Out...">
+      <WindowBox title={t('auth.logging_out')}>
         <div className="text-center py-8">
-          <p>Please wait while we log you out...</p>
+          <p>{t('auth.logging_out_msg')}</p>
         </div>
       </WindowBox>
     </div>

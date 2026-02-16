@@ -2,7 +2,8 @@
 
 import { useState, useEffect } from "react";
 import { WindowBox } from "@/components/WindowBox";
-import { getJuzName } from "@/lib/surah-data";
+import { getJuzName, SURAHS } from "@/lib/surah-data";
+import { useLanguage } from "@/components/LanguageProvider";
 
 interface Schedule {
   id: string;
@@ -22,9 +23,12 @@ interface Schedule {
 interface MajlisStatus {
   currentJuz: number;
   currentAyah: number;
+  currentSurahArabic: string;
+  currentSurahEnglish: string;
 }
 
 export default function ControllerDashboard() {
+  const { t, locale } = useLanguage();
   const [todaySchedule, setTodaySchedule] = useState<Schedule | null>(null);
   const [allSchedules, setAllSchedules] = useState<Schedule[]>([]);
   const [status, setStatus] = useState<MajlisStatus | null>(null);
@@ -34,9 +38,13 @@ export default function ControllerDashboard() {
 
   // Progress form
   const [progressForm, setProgressForm] = useState({
+    stoppedAtSurah: 1,
     stoppedAtJuz: 1,
     stoppedAtAyah: 1,
   });
+
+  // Get surahs that are in the selected juz
+  const surahsInSelectedJuz = SURAHS.filter(s => s.juz === progressForm.stoppedAtJuz);
 
   // Exception form
   const [showExceptionModal, setShowExceptionModal] = useState(false);
@@ -74,7 +82,9 @@ export default function ControllerDashboard() {
       if (statusRes.ok) {
         const data = await statusRes.json();
         setStatus(data);
+        const currentSurah = SURAHS.find(s => s.english === data.currentSurahEnglish);
         setProgressForm({
+          stoppedAtSurah: currentSurah?.number || 1,
           stoppedAtJuz: data.currentJuz || 1,
           stoppedAtAyah: data.currentAyah || 1,
         });
@@ -91,25 +101,33 @@ export default function ControllerDashboard() {
     setMessage("");
     setError("");
 
+    const surah = SURAHS.find(s => s.number === progressForm.stoppedAtSurah);
+    if (!surah) {
+      setError("Invalid surah selected");
+      return;
+    }
+
     try {
       const res = await fetch("/api/status", {
         method: "PUT",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
+          currentSurahArabic: surah.arabic,
+          currentSurahEnglish: surah.english,
           currentJuz: progressForm.stoppedAtJuz,
           currentAyah: progressForm.stoppedAtAyah,
         }),
       });
 
       if (res.ok) {
-        setMessage("Progress recorded successfully");
+        setMessage(t('ctrl.progress_saved'));
         fetchData();
       } else {
         const data = await res.json();
-        setError(data.error || "Failed to update progress");
+        setError(data.error || t('common.error'));
       }
     } catch (err) {
-      setError("Failed to update progress");
+      setError(t('common.error'));
     }
   };
 
@@ -129,14 +147,39 @@ export default function ControllerDashboard() {
       });
 
       if (res.ok) {
-        setMessage(`Day ${todaySchedule.isKhatma ? "unmarked" : "marked"} as الختمة`);
+        setMessage(`${todaySchedule.isKhatma ? t('ctrl.unmarked_khatma') : t('ctrl.marked_khatma')}`);
         fetchData();
       } else {
         const data = await res.json();
-        setError(data.error || "Failed to update schedule");
+        setError(data.error || t('common.error'));
       }
     } catch (err) {
-      setError("Failed to update schedule");
+      setError(t('common.error'));
+    }
+  };
+
+  const handleToggleKhatmaForDay = async (scheduleId: string, currentIsKhatma: boolean) => {
+    setMessage("");
+    setError("");
+
+    try {
+      const res = await fetch(`/api/schedules/${scheduleId}`, {
+        method: "PUT",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          isKhatma: !currentIsKhatma,
+        }),
+      });
+
+      if (res.ok) {
+        setMessage(`${currentIsKhatma ? t('ctrl.unmarked_khatma') : t('ctrl.marked_khatma')}`);
+        fetchData();
+      } else {
+        const data = await res.json();
+        setError(data.error || t('common.error'));
+      }
+    } catch (err) {
+      setError(t('common.error'));
     }
   };
 
@@ -156,32 +199,31 @@ export default function ControllerDashboard() {
       });
 
       if (res.ok) {
-        setMessage("Exception note saved");
+        setMessage(t('ctrl.exception_saved'));
         setShowExceptionModal(false);
         fetchData();
       } else {
         const data = await res.json();
-        setError(data.error || "Failed to save exception");
+        setError(data.error || t('common.error'));
       }
     } catch (err) {
-      setError("Failed to save exception");
+      setError(t('common.error'));
     }
   };
 
   if (loading) {
     return (
-      <WindowBox title="Loading...">
-        <div className="text-center py-8">Loading dashboard...</div>
+      <WindowBox title={t('common.loading')}>
+        <div className="text-center py-8">{t('common.loading')}</div>
       </WindowBox>
     );
   }
 
   return (
     <div className="space-y-4">
-      <WindowBox title="📅 Controller Dashboard">
+      <WindowBox title={t('ctrl.title')}>
         <p className="text-sm text-gray-600 dark:text-gray-400 mb-4">
-          Record daily progress as the reading happens. The calendar automatically 
-          advances 2 juz per day starting from Ramadan day 1.
+          {t('ctrl.desc')}
         </p>
 
         {message && (
@@ -198,16 +240,16 @@ export default function ControllerDashboard() {
       </WindowBox>
 
       {/* Today's Schedule */}
-      <WindowBox title="📖 Today's Schedule">
+      <WindowBox title={t('ctrl.today')}>
         {todaySchedule ? (
           <div className="space-y-3">
             <div className="grid grid-cols-2 gap-4">
               <div>
-                <span className="font-bold">Ramadan Day:</span> {todaySchedule.ramadanDayNumber}
+                <span className="font-bold">{t('ctrl.ramadan_day')}:</span> {todaySchedule.ramadanDayNumber}
               </div>
               <div>
-                <span className="font-bold">Date:</span>{" "}
-                {new Date(todaySchedule.date).toLocaleDateString("en-US", {
+                <span className="font-bold">{t('ctrl.date')}:</span>{" "}
+                {new Date(todaySchedule.date).toLocaleDateString(locale === 'ar' ? 'ar-SA' : 'en-US', {
                   weekday: "long",
                   year: "numeric",
                   month: "long",
@@ -215,16 +257,16 @@ export default function ControllerDashboard() {
                 })}
               </div>
               <div>
-                <span className="font-bold">Expected Juz:</span> {todaySchedule.juzStart}-{todaySchedule.juzEnd}
+                <span className="font-bold">{t('ctrl.expected_juz')}:</span> {todaySchedule.juzStart}-{todaySchedule.juzEnd}
                 <div className="text-sm text-gray-600 dark:text-gray-400">
                   {getJuzName(todaySchedule.juzStart)?.english} - {getJuzName(todaySchedule.juzEnd)?.english}
                 </div>
               </div>
               <div>
-                <span className="font-bold">Time:</span> {todaySchedule.time}
+                <span className="font-bold">{t('ctrl.time')}:</span> {todaySchedule.time}
               </div>
               <div className="col-span-2">
-                <span className="font-bold">Surahs:</span>{" "}
+                <span className="font-bold">{t('ctrl.surahs')}:</span>{" "}
                 <span className="font-quran-arabic text-xl">{todaySchedule.surahArabic}</span>
                 <br />
                 <span className="text-sm">{todaySchedule.surahEnglish}</span>
@@ -233,22 +275,33 @@ export default function ControllerDashboard() {
 
             {todaySchedule.isKhatma && (
               <div className="win-box bg-gradient-to-r from-yellow-400 to-yellow-600 text-black p-3">
-                <span className="text-2xl">⭐</span> <strong>الختمة</strong> - Completion Day
+                <span className="text-2xl">⭐</span> <strong>الختمة</strong> - {t('ctrl.khatma_day')}
               </div>
             )}
 
             {todaySchedule.exceptionNote && (
               <div className="win-box bg-orange-100 dark:bg-orange-900 p-3">
-                <strong>⚠️ Exception:</strong> {todaySchedule.exceptionNote}
+                <strong>⚠️ {t('ctrl.exception')}:</strong> {todaySchedule.exceptionNote}
               </div>
             )}
 
             {todaySchedule.actualJuzStart && (
               <div className="win-box bg-blue-100 dark:bg-blue-900 p-3">
-                <strong>Actual Progress:</strong> Juz {todaySchedule.actualJuzStart}
+                <strong>{t('ctrl.actual_progress')}:</strong> {t('ctrl.juz')} {todaySchedule.actualJuzStart}
                 {todaySchedule.actualJuzEnd && todaySchedule.actualJuzEnd !== todaySchedule.actualJuzStart
                   ? `-${todaySchedule.actualJuzEnd}`
                   : ""}
+              </div>
+            )}
+
+            {status && (status.currentSurahEnglish !== "Al-Fatiha" || status.currentJuz !== 1 || status.currentAyah !== 1) && (
+              <div className="win-box bg-green-100 dark:bg-green-900 p-3">
+                <strong>{t('ctrl.current_progress')}:</strong>
+                <div className="mt-1">
+                  <span className="font-quran-arabic text-lg">{status.currentSurahArabic}</span> ({status.currentSurahEnglish})
+                  <br />
+                  <span className="text-sm">{t('ctrl.juz')} {status.currentJuz}, {t('ctrl.ayah')} {status.currentAyah}</span>
+                </div>
               </div>
             )}
 
@@ -257,7 +310,7 @@ export default function ControllerDashboard() {
                 onClick={handleToggleKhatma}
                 className={`win-button ${todaySchedule.isKhatma ? "bg-yellow-500" : ""}`}
               >
-                {todaySchedule.isKhatma ? "⭐ Unmark" : "⭐ Mark"} as الختمة
+                {todaySchedule.isKhatma ? t('ctrl.unmark_khatma') : t('ctrl.mark_khatma')}
               </button>
               
               <button
@@ -267,46 +320,68 @@ export default function ControllerDashboard() {
                 }}
                 className="win-button"
               >
-                ⚠️ {todaySchedule.exceptionNote ? "Edit" : "Add"} Exception
+                {todaySchedule.exceptionNote ? t('ctrl.edit_exception') : t('ctrl.add_exception')}
               </button>
             </div>
           </div>
         ) : (
-          <p className="text-gray-500">No schedule for today. Check with admin to regenerate calendar.</p>
+          <p className="text-gray-500">{t('ctrl.no_today')}</p>
         )}
       </WindowBox>
 
       {/* Record Progress */}
-      <WindowBox title="✍️ Record Where Reading Stopped Today">
+      <WindowBox title={t('ctrl.record_title')}>
         <form onSubmit={handleUpdateProgress} className="space-y-4">
           <p className="text-sm text-gray-600 dark:text-gray-400">
-            Record where the majlis stopped reading today. The system will automatically
-            know what to read next based on the schedule.
+            {t('ctrl.record_desc')}
           </p>
 
-          <div className="grid grid-cols-2 gap-4">
+          <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
             <div>
-              <label className="block font-bold mb-1">Stopped at Juz:</label>
+              <label className="block font-bold mb-1">{t('ctrl.stopped_surah')}:</label>
               <select
-                value={progressForm.stoppedAtJuz}
+                value={progressForm.stoppedAtSurah}
                 onChange={(e) =>
                   setProgressForm({
                     ...progressForm,
-                    stoppedAtJuz: Number(e.target.value),
+                    stoppedAtSurah: Number(e.target.value),
                   })
                 }
                 className="win-select w-full"
               >
-                {Array.from({ length: 30 }, (_, i) => i + 1).map((juz) => (
-                  <option key={juz} value={juz}>
-                    Juz {juz} - {getJuzName(juz)?.english}
+                {surahsInSelectedJuz.map((surah) => (
+                  <option key={surah.number} value={surah.number}>
+                    {surah.number}. {surah.english}
                   </option>
                 ))}
               </select>
             </div>
 
             <div>
-              <label className="block font-bold mb-1">Stopped at Ayah:</label>
+              <label className="block font-bold mb-1">{t('ctrl.stopped_juz')}:</label>
+              <select
+                value={progressForm.stoppedAtJuz}
+                onChange={(e) => {
+                  const newJuz = Number(e.target.value);
+                  const surahsInJuz = SURAHS.filter(s => s.juz === newJuz);
+                  setProgressForm({
+                    ...progressForm,
+                    stoppedAtJuz: newJuz,
+                    stoppedAtSurah: surahsInJuz.length > 0 ? surahsInJuz[0].number : 1,
+                  });
+                }}
+                className="win-select w-full"
+              >
+                {Array.from({ length: 30 }, (_, i) => i + 1).map((juz) => (
+                  <option key={juz} value={juz}>
+                    {t('ctrl.juz')} {juz} - {locale === 'ar' ? getJuzName(juz)?.arabic : getJuzName(juz)?.english}
+                  </option>
+                ))}
+              </select>
+            </div>
+
+            <div>
+              <label className="block font-bold mb-1">{t('ctrl.stopped_ayah')}:</label>
               <input
                 type="number"
                 min="1"
@@ -323,7 +398,7 @@ export default function ControllerDashboard() {
           </div>
 
           <button type="submit" className="win-button">
-            💾 Save Progress
+            {t('ctrl.save_progress')}
           </button>
         </form>
       </WindowBox>
@@ -333,7 +408,7 @@ export default function ControllerDashboard() {
         <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
           <div className="bg-white dark:bg-gray-800 win-box max-w-lg w-full">
             <div className="flex justify-between items-center mb-4">
-              <h3 className="text-xl font-bold">⚠️ Day Exception Note</h3>
+              <h3 className="text-xl font-bold">{t('ctrl.exception_title')}</h3>
               <button
                 onClick={() => setShowExceptionModal(false)}
                 className="win-button text-sm"
@@ -343,26 +418,25 @@ export default function ControllerDashboard() {
             </div>
 
             <p className="text-sm text-gray-600 dark:text-gray-400 mb-3">
-              Add a note for any timing changes or special circumstances for today.
-              (e.g., "Started 30 minutes late" or "Continued from previous day")
+              {t('ctrl.exception_desc')}
             </p>
 
             <textarea
               value={exceptionNote}
               onChange={(e) => setExceptionNote(e.target.value)}
               className="win-input w-full h-24"
-              placeholder="Enter exception note..."
+              placeholder={t('ctrl.exception_placeholder')}
             />
 
             <div className="flex gap-2 mt-4">
               <button onClick={handleSaveException} className="win-button">
-                💾 Save
+                {t('common.save')}
               </button>
               <button
                 onClick={() => setShowExceptionModal(false)}
                 className="win-button"
               >
-                Cancel
+                {t('common.cancel')}
               </button>
             </div>
           </div>
@@ -370,25 +444,26 @@ export default function ControllerDashboard() {
       )}
 
       {/* All Schedules Overview */}
-      <WindowBox title="📋 Full Ramadan Schedule (30 Days)">
+      <WindowBox title={t('ctrl.full_schedule')}>
         {allSchedules.length > 0 ? (
           <div className="overflow-x-auto">
             <table className="win-table text-sm">
               <thead>
                 <tr>
-                  <th>Day</th>
-                  <th>Date</th>
-                  <th>Juz</th>
-                  <th>Surahs</th>
-                  <th>Time</th>
-                  <th>Status</th>
+                  <th>{t('ctrl.day_col')}</th>
+                  <th>{t('ctrl.date_col')}</th>
+                  <th>{t('ctrl.juz_col')}</th>
+                  <th>{t('ctrl.surahs_col')}</th>
+                  <th>{t('ctrl.time_col')}</th>
+                  <th>{t('ctrl.status_col')}</th>
+                  <th>{t('ctrl.actions_col')}</th>
                 </tr>
               </thead>
               <tbody>
                 {allSchedules.map((schedule) => (
                   <tr key={schedule.id} className={schedule.isKhatma ? "bg-yellow-100 dark:bg-yellow-900" : ""}>
-                    <td className="font-bold">Day {schedule.ramadanDayNumber}</td>
-                    <td>{new Date(schedule.date).toLocaleDateString()}</td>
+                    <td className="font-bold">{t('ctrl.day_col')} {schedule.ramadanDayNumber}</td>
+                    <td>{new Date(schedule.date).toLocaleDateString(locale === 'ar' ? 'ar-SA' : 'en-US')}</td>
                     <td>
                       {schedule.juzStart}-{schedule.juzEnd}
                       <div className="text-xs text-gray-600 dark:text-gray-400">
@@ -405,6 +480,17 @@ export default function ControllerDashboard() {
                       {schedule.isKhatma && <span className="text-yellow-600">⭐ الختمة</span>}
                       {schedule.exceptionNote && <span className="text-orange-600">⚠️</span>}
                     </td>
+                    <td>
+                      <button
+                        onClick={() => handleToggleKhatmaForDay(schedule.id, schedule.isKhatma)}
+                        className={`win-button text-xs ${
+                          schedule.isKhatma ? "bg-yellow-500" : ""
+                        }`}
+                        title={schedule.isKhatma ? "Unmark as الختمة" : "Mark as الختمة"}
+                      >
+                        {schedule.isKhatma ? "⭐ ✓" : "⭐"}
+                      </button>
+                    </td>
                   </tr>
                 ))}
               </tbody>
@@ -412,7 +498,7 @@ export default function ControllerDashboard() {
           </div>
         ) : (
           <p className="text-center text-gray-500 py-4">
-            No schedules exist. Contact admin to generate calendar.
+            {t('ctrl.no_schedules')}
           </p>
         )}
       </WindowBox>

@@ -2,9 +2,11 @@
 
 import { useTheme } from "next-themes";
 import { useEffect, useState } from "react";
+import { useLanguage } from "./LanguageProvider";
 
 export function ThemeToggle() {
     const { theme, setTheme } = useTheme();
+    const { t } = useLanguage();
     const [mounted, setMounted] = useState(false);
 
     useEffect(() => {
@@ -21,7 +23,7 @@ export function ThemeToggle() {
             className="panel-button text-xs font-bold flex items-center gap-1"
             title="Toggle Theme"
         >
-            {theme === "dark" ? "☀️ Light Mode" : "🌙 Dark Mode"}
+            {theme === "dark" ? t('theme.light') : t('theme.dark')}
         </button>
     );
 }

@@ -1,5 +1,5 @@
 import { isToday, isPast, isFuture } from "@/lib/date-utils";
-import { getJuzName } from "@/lib/surah-data";
+import { getJuzName, getSurahsInJuzRange } from "@/lib/surah-data";
 
 interface ScheduleItem {
   id: string;
@@ -62,18 +62,22 @@ export function CalendarDay({ schedule, onClick }: CalendarDayProps) {
         )}
       </div>
 
-      <div className="font-quran-arabic rtl text-xl mb-1">
-        {schedule.surahArabic}
-      </div>
-
-      <div className="font-surah-english text-sm mb-1">
-        {schedule.surahEnglish}
-      </div>
+      {(() => {
+        const surahs = getSurahsInJuzRange(schedule.juzStart, schedule.juzEnd);
+        const displaySurahs = surahs.length > 3
+          ? `${surahs[0].arabic} ... ${surahs[surahs.length - 1].arabic}`
+          : surahs.map(s => s.arabic).join(" - ");
+        return (
+          <div className="font-quran-arabic rtl text-base sm:text-xl mb-1 leading-relaxed">
+            {displaySurahs || schedule.surahArabic}
+          </div>
+        );
+      })()}
 
       <div className="text-xs text-muted-foreground">
         Juz {schedule.juzStart}{schedule.juzStart !== schedule.juzEnd ? `-${schedule.juzEnd}` : ""}
         {juzName && (
-          <span className="block text-xs opacity-75">{juzName.english}</span>
+          <span className="block text-xs opacity-75">{juzName.arabic}</span>
         )}
       </div>
 

@@ -81,6 +81,8 @@ export async function PUT(request: NextRequest) {
         updateData.currentJuz = body.currentJuz;
       if (body.currentPage !== undefined)
         updateData.currentPage = body.currentPage;
+      if (body.currentAyah !== undefined)
+        updateData.currentAyah = body.currentAyah;
       if (body.completionPercentage !== undefined)
         updateData.completionPercentage = body.completionPercentage;
     }
@@ -88,6 +90,10 @@ export async function PUT(request: NextRequest) {
     if (user.role === "ADMIN" || user.role === "MAJLIS") {
       if (body.radioStreamUrl !== undefined)
         updateData.radioStreamUrl = body.radioStreamUrl;
+      if (body.youtubeVideoId !== undefined)
+        updateData.youtubeVideoId = body.youtubeVideoId;
+      if (body.youtubeLiveUrl !== undefined)
+        updateData.youtubeLiveUrl = body.youtubeLiveUrl;
       if (body.isLive !== undefined) updateData.isLive = body.isLive;
     }
 

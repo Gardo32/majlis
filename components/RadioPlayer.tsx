@@ -1,6 +1,7 @@
 "use client";
 
 import { useState, useRef } from "react";
+import { useLanguage } from "@/components/LanguageProvider";
 
 interface RadioPlayerProps {
   streamUrl?: string;
@@ -12,6 +13,7 @@ export function RadioPlayer({ streamUrl, youtubeVideoId, isLive }: RadioPlayerPr
   const [isPlaying, setIsPlaying] = useState(false);
   const [volume, setVolume] = useState(80);
   const audioRef = useRef<HTMLAudioElement>(null);
+  const { t } = useLanguage();
 
   const hasYouTube = youtubeVideoId && youtubeVideoId.trim() !== "";
   const hasAudioStream = streamUrl && streamUrl.trim() !== "";
@@ -54,26 +56,26 @@ export function RadioPlayer({ streamUrl, youtubeVideoId, isLive }: RadioPlayerPr
           <div className="win-box bg-gray-200 dark:bg-gray-800 p-8 text-center aspect-video flex items-center justify-center">
             <div>
               <p className="text-2xl mb-2">📺</p>
-              <p className="text-sm text-muted-foreground">Stream is currently offline</p>
+              <p className="text-sm text-muted-foreground">{t("radio.stream_offline")}</p>
             </div>
           </div>
         )}
 
         <div className="win-box bg-blue-100 dark:bg-blue-900 p-3 text-sm">
-          <strong>YouTube Live:</strong>{" "}
+          <strong>{t("radio.youtube_live")}:</strong>{" "}
           <a 
             href={`https://www.youtube.com/watch?v=${youtubeVideoId}`}
             target="_blank"
             rel="noopener noreferrer"
             className="text-blue-600 dark:text-blue-400 underline"
           >
-            Watch on YouTube
+            {t("radio.watch_youtube")}
           </a>
         </div>
 
         {!isLive && (
           <div className="text-sm text-red-800 dark:text-red-200 win-box bg-red-100 dark:bg-red-900 p-2 font-bold">
-            ⚠️ Stream is currently offline
+            ⚠️ {t("radio.stream_offline")}
           </div>
         )}
       </div>
@@ -92,7 +94,7 @@ export function RadioPlayer({ streamUrl, youtubeVideoId, isLive }: RadioPlayerPr
             disabled={!isLive}
             className="win-button"
           >
-            {isPlaying ? "⏹️ Stop" : "▶️ Play"}
+            {isPlaying ? t("radio.stop") : t("radio.play")}
           </button>
 
           <div className="flex items-center gap-2">
@@ -111,7 +113,7 @@ export function RadioPlayer({ streamUrl, youtubeVideoId, isLive }: RadioPlayerPr
 
         {!isLive && (
           <div className="text-sm text-red-800 dark:text-red-200 win-box bg-red-100 dark:bg-red-900 p-2 font-bold">
-            ⚠️ Stream is currently offline
+            ⚠️ {t("radio.stream_offline")}
           </div>
         )}
       </div>
@@ -123,7 +125,7 @@ export function RadioPlayer({ streamUrl, youtubeVideoId, isLive }: RadioPlayerPr
     <div className="win-box bg-muted p-8 text-center">
       <p className="text-2xl mb-2">📻</p>
       <p className="text-sm text-muted-foreground">
-        No stream configured. Contact the Majlis administrator.
+        {t("radio.no_stream")}
       </p>
     </div>
   );

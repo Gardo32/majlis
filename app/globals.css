@@ -321,10 +321,30 @@
   border: 1px solid var(--panel-border);
   padding: 8px;
   background-color: var(--card);
+  color: var(--foreground);
+}
+
+.dark .win-table td {
+  border-color: rgba(212, 175, 55, 0.3);
+  background-color: var(--card);
+  color: var(--foreground);
 }
 
 .win-table tr:hover td {
   background-color: var(--muted);
+}
+
+.dark .win-table tr:hover td {
+  background-color: rgba(212, 175, 55, 0.08);
+}
+
+/* Alternate row shading for readability */
+.win-table tbody tr:nth-child(even) td {
+  background-color: var(--muted);
+}
+
+.dark .win-table tbody tr:nth-child(even) td {
+  background-color: rgba(255, 255, 255, 0.03);
 }
 
 /* Live indicator */
@@ -365,4 +385,73 @@
 /* Utility classes for the new theme */
 .panel-button {
   @apply win-button;
+}
+
+/* ===== Responsiveness ===== */
+
+/* Mobile-first table improvements */
+@media (max-width: 640px) {
+  .win-table th,
+  .win-table td {
+    padding: 4px 6px;
+    font-size: 12px;
+  }
+
+  .win-title-bar,
+  .win-title-bar-flat {
+    font-size: 13px;
+    padding: 4px 6px;
+  }
+
+  .win-button {
+    padding: 3px 10px;
+    font-size: 12px;
+  }
+
+  .calendar-cell {
+    min-height: 70px;
+    padding: 4px;
+  }
+
+  .calendar-grid {
+    gap: 1px;
+  }
+}
+
+/* Very small screens */
+@media (max-width: 400px) {
+  .calendar-cell {
+    min-height: 55px;
+    padding: 2px;
+  }
+
+  .win-table th,
+  .win-table td {
+    padding: 3px 4px;
+    font-size: 11px;
+  }
+}
+
+/* Dark mode alert/message boxes */
+.dark .border-2.border-red-600 {
+  background-color: rgba(127, 29, 29, 0.5);
+  color: #fecaca;
+}
+
+.dark .border-2.border-green-600 {
+  background-color: rgba(20, 83, 45, 0.5);
+  color: #bbf7d0;
+}
+
+/* Ensure inputs are legible in dark mode */
+.dark .win-input,
+.dark .win-select {
+  background-color: var(--input);
+  color: var(--foreground);
+  border-color: var(--primary);
+}
+
+/* Dark mode role badges */
+.dark .bg-gray-200 {
+  background-color: rgba(255, 255, 255, 0.1);
 }
