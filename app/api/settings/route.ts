@@ -11,7 +11,7 @@ export async function GET() {
     // If no settings exist, return default
     if (!settings) {
       return NextResponse.json({
-        ramadanStartDate: "2026-02-19T00:00:00.000Z",
+        ramadanStartDate: "2026-02-18T00:00:00.000Z",
         isDefault: true,
       });
     }

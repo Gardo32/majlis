@@ -61,7 +61,7 @@ export async function POST(request: NextRequest) {
         // Create default settings
         settings = await prisma.settings.create({
           data: {
-            ramadanStartDate: new Date("2026-02-19T00:00:00.000Z"),
+            ramadanStartDate: new Date("2026-02-18T00:00:00.000Z"),
           },
         });
       }
