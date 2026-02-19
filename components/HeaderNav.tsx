@@ -51,6 +51,9 @@ export function HeaderNav({ user }: HeaderNavProps) {
             <Link href="/radio" className="win-button text-sm">
               📻 {t('nav.radio')}
             </Link>
+            <Link href="/album" className="win-button text-sm">
+              📸 {t('nav.album')}
+            </Link>
           </div>
 
           <div className="flex items-center gap-2">
@@ -60,7 +63,6 @@ export function HeaderNav({ user }: HeaderNavProps) {
                   {user.name} ({user.role})
                 </span>
                 {(user.role === "ADMIN" ||
-                  user.role === "MAJLIS_CONTROLLER" ||
                   user.role === "MAJLIS") && (
                     <Link href="/dashboard" className="win-button text-sm">
                       ⚙️ {t('nav.dashboard')}
@@ -92,13 +94,15 @@ export function HeaderNav({ user }: HeaderNavProps) {
             <Link href="/radio" className="win-button text-sm py-2 text-center" onClick={() => setMenuOpen(false)}>
               📻 {t('nav.radio')}
             </Link>
+            <Link href="/album" className="win-button text-sm py-2 text-center" onClick={() => setMenuOpen(false)}>
+              📸 {t('nav.album')}
+            </Link>
             {user ? (
               <>
                 <div className="text-xs text-center py-1 text-muted-foreground">
                   {user.name} ({user.role})
                 </div>
                 {(user.role === "ADMIN" ||
-                  user.role === "MAJLIS_CONTROLLER" ||
                   user.role === "MAJLIS") && (
                     <Link href="/dashboard" className="win-button text-sm py-2 text-center" onClick={() => setMenuOpen(false)}>
                       ⚙️ {t('nav.dashboard')}

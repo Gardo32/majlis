@@ -12,7 +12,7 @@ interface User {
   createdAt: string;
 }
 
-const ROLES = ["USER", "MAJLIS_CONTROLLER", "MAJLIS", "ADMIN", "CUSTOM_ROLE"];
+const ROLES = ["USER", "MAJLIS", "ADMIN"];
 
 export default function AdminDashboard() {
   const { t } = useLanguage();
@@ -481,16 +481,10 @@ export default function AdminDashboard() {
             <strong>USER:</strong> {t('admin.role_user')}
           </div>
           <div className="border border-black dark:border-gray-600 p-2 bg-gray-50 dark:bg-gray-800">
-            <strong>MAJLIS_CONTROLLER:</strong> {t('admin.role_controller')}
-          </div>
-          <div className="border border-black dark:border-gray-600 p-2 bg-gray-50 dark:bg-gray-800">
             <strong>MAJLIS:</strong> {t('admin.role_majlis')}
           </div>
           <div className="border border-black dark:border-gray-600 p-2 bg-gray-50 dark:bg-gray-800">
             <strong>ADMIN:</strong> {t('admin.role_admin')}
-          </div>
-          <div className="border border-black dark:border-gray-600 p-2 bg-gray-50 dark:bg-gray-800">
-            <strong>CUSTOM_ROLE:</strong> {t('admin.role_custom')}
           </div>
         </div>
       </WindowBox>

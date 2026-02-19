@@ -43,10 +43,10 @@ async function main() {
 
   const controller = await prisma.user.create({
     data: {
-      name: "Majlis Controller",
+      name: "Majlis Operator",
       email: "controller@majlis.local",
       emailVerified: true,
-      role: "MAJLIS_CONTROLLER",
+      role: "MAJLIS",
     },
   });
 
@@ -79,7 +79,7 @@ async function main() {
 
   console.log("✅ Users created:");
   console.log("   - admin@majlis.local / admin123 (ADMIN)");
-  console.log("   - controller@majlis.local / controller123 (MAJLIS_CONTROLLER)");
+  console.log("   - controller@majlis.local / controller123 (MAJLIS)");
   console.log("   - majlis@majlis.local / majlis123 (MAJLIS)");
 
   // Create initial Majlis status

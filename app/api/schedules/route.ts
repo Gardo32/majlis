@@ -38,7 +38,7 @@ export async function POST(request: NextRequest) {
 
     if (
       user.role !== "ADMIN" &&
-      user.role !== "MAJLIS_CONTROLLER"
+      user.role !== "MAJLIS"
     ) {
       return NextResponse.json({ error: "Forbidden" }, { status: 403 });
     }

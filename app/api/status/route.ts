@@ -39,10 +39,9 @@ export async function PUT(request: NextRequest) {
       return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
     }
 
-    // Controller can update progress, Majlis can update radio settings
+    // ADMIN and MAJLIS can update all status fields
     if (
       user.role !== "ADMIN" &&
-      user.role !== "MAJLIS_CONTROLLER" &&
       user.role !== "MAJLIS"
     ) {
       return NextResponse.json({ error: "Forbidden" }, { status: 403 });
@@ -69,10 +68,7 @@ export async function PUT(request: NextRequest) {
     // Determine what fields to update based on role
     const updateData: Record<string, unknown> = {};
 
-    if (
-      user.role === "ADMIN" ||
-      user.role === "MAJLIS_CONTROLLER"
-    ) {
+    if (user.role === "ADMIN" || user.role === "MAJLIS") {
       if (body.currentSurahArabic !== undefined)
         updateData.currentSurahArabic = body.currentSurahArabic;
       if (body.currentSurahEnglish !== undefined)
@@ -85,9 +81,6 @@ export async function PUT(request: NextRequest) {
         updateData.currentAyah = body.currentAyah;
       if (body.completionPercentage !== undefined)
         updateData.completionPercentage = body.completionPercentage;
-    }
-
-    if (user.role === "ADMIN" || user.role === "MAJLIS") {
       if (body.radioStreamUrl !== undefined)
         updateData.radioStreamUrl = body.radioStreamUrl;
       if (body.youtubeVideoId !== undefined)

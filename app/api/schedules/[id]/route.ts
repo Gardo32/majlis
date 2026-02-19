@@ -44,7 +44,7 @@ export async function PUT(
 
     if (
       user.role !== "ADMIN" &&
-      user.role !== "MAJLIS_CONTROLLER"
+      user.role !== "MAJLIS"
     ) {
       return NextResponse.json({ error: "Forbidden" }, { status: 403 });
     }
@@ -110,7 +110,7 @@ export async function DELETE(
 
     if (
       user.role !== "ADMIN" &&
-      user.role !== "MAJLIS_CONTROLLER"
+      user.role !== "MAJLIS"
     ) {
       return NextResponse.json({ error: "Forbidden" }, { status: 403 });
     }

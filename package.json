@@ -13,6 +13,7 @@
     "db:seed": "tsx prisma/seed.ts"
   },
   "dependencies": {
+    "@azure/storage-blob": "^12.31.0",
     "@prisma/client": "^5.10.0",
     "better-auth": "^1.2.0",
     "eslint-config-next": "^16.1.6",
