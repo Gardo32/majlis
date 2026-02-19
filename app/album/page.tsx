@@ -95,6 +95,24 @@ export default function AlbumPage() {
     setActiveIndex((i) => (i !== null ? (i + 1) % items.length : null));
   }, [items.length]);
 
+  const handleDownload = useCallback(async (item: AlbumItem) => {
+    try {
+      const res = await fetch(item.blobUrl);
+      const blob = await res.blob();
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement("a");
+      a.href = url;
+      a.download = item.fileName;
+      document.body.appendChild(a);
+      a.click();
+      document.body.removeChild(a);
+      URL.revokeObjectURL(url);
+    } catch {
+      // fallback: open in new tab
+      window.open(item.blobUrl, "_blank");
+    }
+  }, []);
+
   useEffect(() => {
     if (activeIndex === null) return;
     const onKey = (e: KeyboardEvent) => {
@@ -162,13 +180,25 @@ export default function AlbumPage() {
                 <span className="ml-3 text-white font-medium">{active.caption}</span>
               )}
             </div>
-            <button
-              onClick={close}
-              className="text-white/70 hover:text-white text-2xl leading-none px-2"
-              aria-label="Close"
-            >
-              
-            </button>
+            <div className="flex items-center gap-2">
+              <button
+                onClick={(e) => { e.stopPropagation(); handleDownload(active); }}
+                className="text-white/70 hover:text-white text-sm px-3 py-1 border border-white/30 hover:border-white/70 rounded transition-colors flex items-center gap-1"
+                aria-label="Download"
+              >
+                <svg className="w-4 h-4" fill="none" stroke="currentColor" strokeWidth={2} viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" d="M4 16v2a2 2 0 002 2h12a2 2 0 002-2v-2M7 10l5 5 5-5M12 4v11" />
+                </svg>
+                <span className="hidden sm:inline">{t("album.download")}</span>
+              </button>
+              <button
+                onClick={close}
+                className="text-white/70 hover:text-white text-2xl leading-none px-2"
+                aria-label="Close"
+              >
+                ✕
+              </button>
+            </div>
           </div>
 
           {/* Media area */}
