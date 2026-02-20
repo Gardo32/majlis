@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { getUser } from "@/lib/auth-server";
-import { generateUploadSasUrl, isConfigured } from "@/lib/azure-blob";
+import { generateUploadSasUrl, isConfigured, ensureCorsConfigured } from "@/lib/azure-blob";
 
 const ALLOWED_ROLES = ["ADMIN", "MAJLIS"];
 const CONTAINER_NAME = process.env.AZURE_STORAGE_CONTAINER_NAME || "majlis";
@@ -27,17 +27,25 @@ export async function GET(request: NextRequest) {
       return NextResponse.json({ error: "fileName is required" }, { status: 400 });
     }
 
+    // Ensure CORS is configured on the storage account so the browser can PUT
+    // directly to Azure. This is idempotent and cached per cold-start.
+    const origin = request.headers.get("origin") ?? undefined;
+    try {
+      await ensureCorsConfigured(origin);
+    } catch (corsErr) {
+      // Log but don't block — CORS rules may already be set manually
+      console.warn("CORS auto-configure failed (continuing):", corsErr);
+    }
+
     // Sanitise filename: strip path components and special chars
     const safeName = fileName.replace(/[^a-zA-Z0-9._-]/g, "_");
     const blobName = `album/${Date.now()}-${safeName}`;
 
-    const uploadUrl = generateUploadSasUrl(blobName, mimeType);
+    const uploadUrl = generateUploadSasUrl(blobName);
 
-    // The final public (SAS-signed for reading) URL will be generated at GET time.
-    // Return the blob name and upload URL to the client.
     return NextResponse.json({
       uploadUrl,       // PUT target with write SAS
-      blobName,        // store this; pass back to /api/album to register
+      blobName,        // pass back to /api/album to register
       blobBaseUrl: `https://${ACCOUNT_NAME}.blob.core.windows.net/${CONTAINER_NAME}/${blobName}`,
       mimeType,
     });
