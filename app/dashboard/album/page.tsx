@@ -23,15 +23,11 @@ function AlbumDashboardContent() {
   const [items, setItems] = useState<AlbumItem[]>([]);
   const [loading, setLoading] = useState(true);
   const [uploading, setUploading] = useState(false);
+  const [uploadProgress, setUploadProgress] = useState(0);
+  const [uploadCurrent, setUploadCurrent] = useState(0);
+  const [uploadTotal, setUploadTotal] = useState(0);
   const [message, setMessage] = useState("");
   const [error, setError] = useState("");
-
-  interface FileUploadStatus {
-    status: "pending" | "uploading" | "done" | "error";
-    progress: number;
-    errorMsg?: string;
-  }
-  const [fileStatuses, setFileStatuses] = useState<FileUploadStatus[]>([]);
   const [caption, setCaption] = useState("");
   const [selectedFiles, setSelectedFiles] = useState<File[]>([]);
   const [previews, setPreviews] = useState<{ url: string; type: "image" | "video" }[]>([]);
@@ -82,8 +78,7 @@ function AlbumDashboardContent() {
   const uploadDirectToAzure = (
     uploadUrl: string,
     file: File,
-    mimeType: string,
-    onProgress?: (pct: number) => void
+    mimeType: string
   ): Promise<void> =>
     new Promise((resolve, reject) => {
       const xhr = new XMLHttpRequest();
@@ -91,8 +86,8 @@ function AlbumDashboardContent() {
       xhr.setRequestHeader("x-ms-blob-type", "BlockBlob");
       xhr.setRequestHeader("Content-Type", mimeType);
       xhr.upload.onprogress = (e) => {
-        if (e.lengthComputable && onProgress) {
-          onProgress(Math.round((e.loaded / e.total) * 100));
+        if (e.lengthComputable) {
+          setUploadProgress(Math.round((e.loaded / e.total) * 100));
         }
       };
       xhr.onload = () => {
@@ -109,111 +104,82 @@ function AlbumDashboardContent() {
     e.preventDefault();
     setMessage(""); setError("");
     if (selectedFiles.length === 0) { setError(t("album.no_file")); return; }
-
-    // Initialise per-file statuses
-    const initial = selectedFiles.map(() => ({ status: "pending" as const, progress: 0 }));
-    setFileStatuses(initial);
     setUploading(true);
+    setUploadProgress(0);
+    setUploadCurrent(0);
+    setUploadTotal(selectedFiles.length);
 
-    const setStatus = (idx: number, patch: Partial<{ status: "pending" | "uploading" | "done" | "error"; progress: number; errorMsg: string }>) =>
-      setFileStatuses((prev) => {
-        const next = [...prev];
-        next[idx] = { ...next[idx], ...patch };
-        return next;
-      });
+    let successCount = 0;
 
-    const uploadOne = async (file: File, idx: number): Promise<void> => {
-      setStatus(idx, { status: "uploading", progress: 0 });
+    try {
+      for (let i = 0; i < selectedFiles.length; i++) {
+        const file = selectedFiles[i];
+        setUploadCurrent(i + 1);
 
-      const useDirect =
-        file.type.startsWith("video/") ||
-        file.size > DIRECT_UPLOAD_THRESHOLD;
+        const useDirect =
+          file.type.startsWith("video/") ||
+          file.size > DIRECT_UPLOAD_THRESHOLD;
 
-      if (useDirect) {
-        // Step 1: get a write SAS URL
-        const sasRes = await fetch(
-          `/api/album/sas?fileName=${encodeURIComponent(file.name)}&mimeType=${encodeURIComponent(file.type)}`
-        );
-        if (!sasRes.ok) {
-          const d = await sasRes.json();
-          throw new Error(d.error || "Failed to get upload URL");
+        if (useDirect) {
+          // Step 1: get a write SAS URL from the server
+          const sasRes = await fetch(
+            `/api/album/sas?fileName=${encodeURIComponent(file.name)}&mimeType=${encodeURIComponent(file.type)}`
+          );
+          if (!sasRes.ok) {
+            const d = await sasRes.json();
+            throw new Error(d.error || "Failed to get upload URL");
+          }
+          const { uploadUrl, blobName } = await sasRes.json();
+
+          // Step 2: PUT directly to Azure (no Vercel body limit)
+          await uploadDirectToAzure(uploadUrl, file, file.type);
+
+          // Step 3: register the uploaded blob in the DB
+          const regRes = await fetch("/api/album", {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({
+              blobName,
+              fileName: file.name,
+              mimeType: file.type,
+              caption: i === 0 && caption.trim() ? caption.trim() : undefined,
+            }),
+          });
+          if (!regRes.ok) {
+            const d = await regRes.json();
+            throw new Error(d.error || "Failed to register upload");
+          }
+        } else {
+          // Small image — proxy through Vercel (simpler, no extra roundtrip)
+          const formData = new FormData();
+          formData.append("file", file);
+          if (i === 0 && caption.trim()) formData.append("caption", caption.trim());
+          const res = await fetch("/api/album", { method: "POST", body: formData });
+          if (!res.ok) {
+            const d = await res.json();
+            throw new Error(d.error || t("common.error"));
+          }
         }
-        const { uploadUrl, blobName } = await sasRes.json();
 
-        // Step 2: PUT directly to Azure
-        await uploadDirectToAzure(uploadUrl, file, file.type, (pct) =>
-          setStatus(idx, { progress: pct })
-        );
-
-        // Step 3: register in DB
-        const regRes = await fetch("/api/album", {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({
-            blobName,
-            fileName: file.name,
-            mimeType: file.type,
-            caption: idx === 0 && caption.trim() ? caption.trim() : undefined,
-          }),
-        });
-        if (!regRes.ok) {
-          const d = await regRes.json();
-          throw new Error(d.error || "Failed to register upload");
-        }
-      } else {
-        // Small file — proxy through Vercel
-        const formData = new FormData();
-        formData.append("file", file);
-        if (idx === 0 && caption.trim()) formData.append("caption", caption.trim());
-        const res = await fetch("/api/album", { method: "POST", body: formData });
-        if (!res.ok) {
-          const d = await res.json();
-          throw new Error(d.error || t("common.error"));
-        }
-        setStatus(idx, { progress: 100 });
+        successCount++;
       }
 
-      setStatus(idx, { status: "done", progress: 100 });
-    };
-
-    // Upload all files in parallel
-    const results = await Promise.allSettled(
-      selectedFiles.map((file, idx) =>
-        uploadOne(file, idx).catch((err) => {
-          setStatus(idx, { status: "error", progress: 0, errorMsg: err instanceof Error ? err.message : t("common.error") });
-          throw err;
-        })
-      )
-    );
-
-    const successCount = results.filter((r) => r.status === "fulfilled").length;
-    const failCount = results.length - successCount;
-
-    if (successCount > 0) {
       if (successCount > 1) {
         setMessage(t("album.upload_batch_success").replace("{count}", String(successCount)));
       } else {
         setMessage(t("album.upload_success"));
       }
-    }
-    if (failCount > 0) {
-      setError(`${failCount} file(s) failed to upload. Check the indicators below.`);
-    }
-
-    if (successCount > 0) {
-      await fetchItems();
-    }
-
-    // Only clear UI if all succeeded
-    if (failCount === 0) {
       setSelectedFiles([]); setCaption("");
       previews.forEach((p) => URL.revokeObjectURL(p.url));
       setPreviews([]);
-      setFileStatuses([]);
       if (fileInputRef.current) fileInputRef.current.value = "";
+      await fetchItems();
+    } catch (err) {
+      setError(err instanceof Error ? err.message : t("common.error"));
+    } finally {
+      setUploading(false); setUploadProgress(0);
+      setUploadCurrent(0); setUploadTotal(0);
     }
-
-    setUploading(false);
   };
 
   const handleDelete = async (id: string) => {
@@ -323,72 +289,20 @@ function AlbumDashboardContent() {
               {previews.length > 0 && (
                 <div className="border-2 border-border">
                   <div className={`grid gap-1 p-1 ${previews.length === 1 ? "" : "grid-cols-3 sm:grid-cols-4"}`}>
-                    {previews.map((p, idx) => {
-                      const fs = fileStatuses[idx];
-                      return (
-                        <div key={idx} className="relative overflow-hidden">
-                          {p.type === "video" ? (
-                            <video
-                              src={p.url}
-                              controls
-                              className={previews.length === 1 ? "max-h-48 w-full bg-black" : "w-full aspect-square object-cover bg-black"}
-                            />
-                          ) : (
-                            // eslint-disable-next-line @next/next/no-img-element
-                            <img src={p.url} alt="Preview" className={previews.length === 1 ? "max-h-48 w-full object-contain bg-secondary" : "w-full aspect-square object-cover bg-secondary"} />
-                          )}
-
-                          {/* Upload status overlay */}
-                          {fs && fs.status !== "pending" && (
-                            <div className="absolute inset-0 flex flex-col items-center justify-center">
-                              {fs.status === "uploading" && (
-                                <>
-                                  <div className="absolute inset-0 bg-black/40" />
-                                  <div className="relative z-10 w-3/4">
-                                    <div className="text-white text-xs text-center mb-1 font-medium drop-shadow">
-                                      {fs.progress}%
-                                    </div>
-                                    <div className="w-full bg-white/30 h-2 rounded-full overflow-hidden">
-                                      <div
-                                        className="h-full bg-primary transition-all duration-150"
-                                        style={{ width: `${fs.progress}%` }}
-                                      />
-                                    </div>
-                                  </div>
-                                </>
-                              )}
-                              {fs.status === "done" && (
-                                <>
-                                  <div className="absolute inset-0 bg-green-500/30" />
-                                  <div className="relative z-10 bg-green-500 rounded-full p-1.5">
-                                    <svg className="w-5 h-5 text-white" fill="none" stroke="currentColor" strokeWidth={3} viewBox="0 0 24 24">
-                                      <path strokeLinecap="round" strokeLinejoin="round" d="M5 13l4 4L19 7" />
-                                    </svg>
-                                  </div>
-                                </>
-                              )}
-                              {fs.status === "error" && (
-                                <>
-                                  <div className="absolute inset-0 bg-red-500/40" />
-                                  <div className="relative z-10 flex flex-col items-center gap-1">
-                                    <div className="bg-red-600 rounded-full p-1.5">
-                                      <svg className="w-5 h-5 text-white" fill="none" stroke="currentColor" strokeWidth={3} viewBox="0 0 24 24">
-                                        <path strokeLinecap="round" strokeLinejoin="round" d="M6 18L18 6M6 6l12 12" />
-                                      </svg>
-                                    </div>
-                                    {fs.errorMsg && (
-                                      <span className="text-white text-[10px] text-center px-1 max-w-full leading-tight drop-shadow line-clamp-2">
-                                        {fs.errorMsg}
-                                      </span>
-                                    )}
-                                  </div>
-                                </>
-                              )}
-                            </div>
-                          )}
-                        </div>
-                      );
-                    })}
+                    {previews.map((p, idx) => (
+                      <div key={idx} className="relative">
+                        {p.type === "video" ? (
+                          <video
+                            src={p.url}
+                            controls
+                            className={previews.length === 1 ? "max-h-48 w-full bg-black" : "w-full aspect-square object-cover bg-black"}
+                          />
+                        ) : (
+                          // eslint-disable-next-line @next/next/no-img-element
+                          <img src={p.url} alt="Preview" className={previews.length === 1 ? "max-h-48 w-full object-contain bg-secondary" : "w-full aspect-square object-cover bg-secondary"} />
+                        )}
+                      </div>
+                    ))}
                   </div>
                 </div>
               )}
@@ -409,26 +323,20 @@ function AlbumDashboardContent() {
 
               {uploading && (
                 <div className="space-y-1">
-                  <div className="flex justify-between text-xs text-muted-foreground">
-                    <span>{t("album.uploading")}</span>
-                    <span>
-                      {fileStatuses.filter((s) => s.status === "done").length} / {fileStatuses.length} {t("common.done") ?? "done"}
-                    </span>
-                  </div>
-                  {/* Overall progress bar */}
-                  <div className="w-full bg-secondary border border-border h-2 overflow-hidden rounded-full">
+                  <div className="w-full bg-secondary border border-border h-4 overflow-hidden">
                     <div
-                      className="h-full bg-primary transition-all duration-300"
-                      style={{
-                        width: fileStatuses.length > 0
-                          ? `${Math.round(
-                              fileStatuses.reduce((sum, s) => sum + (s.status === "done" ? 100 : s.status === "error" ? 0 : s.progress), 0) /
-                              fileStatuses.length
-                            )}%`
-                          : "0%",
-                      }}
+                      className="h-full bg-primary transition-all duration-200"
+                      style={{ width: uploadProgress > 0 ? `${uploadProgress}%` : "100%",
+                               animation: uploadProgress === 0 ? "pulse 1.5s infinite" : "none" }}
                     />
                   </div>
+                  <p className="text-xs text-muted-foreground text-center">
+                    {uploadTotal > 1
+                      ? t("album.upload_batch_progress")
+                          .replace("{current}", String(uploadCurrent))
+                          .replace("{total}", String(uploadTotal))
+                      : uploadProgress > 0 ? `${uploadProgress}%` : t("album.uploading")}
+                  </p>
                 </div>
               )}
 
