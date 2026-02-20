@@ -115,7 +115,6 @@ function AlbumDashboardContent() {
       for (let i = 0; i < selectedFiles.length; i++) {
         const file = selectedFiles[i];
         setUploadCurrent(i + 1);
-        setUploadProgress(0);
 
         const useDirect =
           file.type.startsWith("video/") ||
