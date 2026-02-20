@@ -137,7 +137,7 @@ export function generateUploadSasUrl(blobName: string): string {
  * Generate a SAS URL for a blob (read-only, 24-hour expiry).
  * This ensures images are accessible regardless of container public access settings.
  */
-export function generateSasUrl(blobName: string, expiryHours = 24): string {
+export function generateSasUrl(blobName: string, expiryHours = 48): string {
   const credential = getCredential();
   const startsOn = new Date();
   const expiresOn = new Date(startsOn.getTime() + expiryHours * 60 * 60 * 1000);

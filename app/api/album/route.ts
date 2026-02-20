@@ -34,7 +34,9 @@ export async function GET(request: NextRequest) {
 
     return NextResponse.json(signed, {
       headers: {
-        "Cache-Control": "public, max-age=60, stale-while-revalidate=300",
+        // SAS URLs are valid 48 h — cache aggressively so large galleries
+        // don't re-hit the DB + crypto on every page visit.
+        "Cache-Control": "public, max-age=3600, stale-while-revalidate=86400",
       },
     });
   } catch (error) {

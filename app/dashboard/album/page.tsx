@@ -4,6 +4,37 @@ import { useState, useEffect, useRef, useCallback, Suspense } from "react";
 import { WindowBox } from "@/components/WindowBox";
 import { useLanguage } from "@/components/LanguageProvider";
 
+const PAGE_SIZE = 24;
+const SESSION_KEY = "album_cache";
+const SESSION_TTL = 5 * 60 * 1000; // 5 min
+
+// Intersection-observer lazy image
+function LazyImg({ src, alt, className }: { src: string; alt: string; className?: string }) {
+  const [loaded, setLoaded] = useState(false);
+  const [inView, setInView] = useState(false);
+  const ref = useRef<HTMLSpanElement>(null);
+  useEffect(() => {
+    const el = ref.current;
+    if (!el) return;
+    const obs = new IntersectionObserver(
+      ([entry]) => { if (entry.isIntersecting) { setInView(true); obs.disconnect(); } },
+      { rootMargin: "400px" }
+    );
+    obs.observe(el);
+    return () => obs.disconnect();
+  }, []);
+  return (
+    <span ref={ref} className="block relative w-full h-full">
+      {!loaded && <span className="absolute inset-0 bg-secondary animate-pulse" />}
+      {inView && (
+        // eslint-disable-next-line @next/next/no-img-element
+        <img src={src} alt={alt} onLoad={() => setLoaded(true)}
+          className={`${className} transition-opacity duration-300 ${loaded ? "opacity-100" : "opacity-0"}`} />
+      )}
+    </span>
+  );
+}
+
 interface AlbumItem {
   id: string;
   blobUrl: string;
@@ -34,6 +65,7 @@ function AlbumDashboardContent() {
   const [previews, setPreviews] = useState<{ url: string; type: "image" | "video" }[]>([]);
   const [activeIndex, setActiveIndex] = useState<number | null>(null);
   const [configured, setConfigured] = useState<boolean | null>(null);
+  const [galleryPage, setGalleryPage] = useState(1);
   const fileInputRef = useRef<HTMLInputElement>(null);
   const videoRef = useRef<HTMLVideoElement>(null);
   const xhrRef = useRef<XMLHttpRequest | null>(null);
@@ -54,10 +86,26 @@ function AlbumDashboardContent() {
     } catch { setConfigured(false); }
   };
 
-  const fetchItems = async () => {
+  const fetchItems = async (invalidate = false) => {
     try {
+      if (!invalidate) {
+        try {
+          const cached = sessionStorage.getItem(SESSION_KEY);
+          if (cached) {
+            const { data, ts } = JSON.parse(cached) as { data: AlbumItem[]; ts: number };
+            if (Date.now() - ts < SESSION_TTL) {
+              setItems(data); setLoading(false); return;
+            }
+            setItems(data); setLoading(false);
+          }
+        } catch { /* ignore */ }
+      }
       const res = await fetch("/api/album");
-      if (res.ok) setItems(await res.json());
+      if (res.ok) {
+        const data = await res.json();
+        setItems(data);
+        try { sessionStorage.setItem(SESSION_KEY, JSON.stringify({ data, ts: Date.now() })); } catch { /* quota */ }
+      }
     } catch { setError(t("common.error")); }
     finally { setLoading(false); }
   };
@@ -196,7 +244,8 @@ function AlbumDashboardContent() {
       previews.forEach((p) => URL.revokeObjectURL(p.url));
       setPreviews([]);
       if (fileInputRef.current) fileInputRef.current.value = "";
-      await fetchItems();
+      setGalleryPage(1);
+      await fetchItems(true); // force re-fetch after upload
     } catch (err) {
       setError(err instanceof Error ? err.message : t("common.error"));
     } finally {
@@ -214,6 +263,7 @@ function AlbumDashboardContent() {
       if (res.ok) {
         setMessage(t("album.delete_success"));
         setItems((prev) => prev.filter((item) => item.id !== id));
+        try { sessionStorage.removeItem(SESSION_KEY); } catch { /* ignore */ }
         if (items[activeIndex ?? -1]?.id === id) setActiveIndex(null);
       } else {
         setError((await res.json()).error || t("common.error"));
@@ -392,28 +442,22 @@ function AlbumDashboardContent() {
           ) : (
             <WindowBox title={`${t("album.gallery")} (${items.length})`}>
               <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 gap-2">
-                {items.map((item, idx) => (
+                {items.slice(0, galleryPage * PAGE_SIZE).map((item, idx) => (
                   <div key={item.id} className="border-2 border-border group">
-                    <div className="relative cursor-pointer" onClick={() => open(idx)}>
+                    <div className="relative cursor-pointer aspect-square overflow-hidden" onClick={() => open(idx)}>
                       {isVideo(item) ? (
-                        <div className="w-full aspect-square bg-black flex items-center justify-center">
+                        <div className="w-full h-full bg-neutral-900 flex items-center justify-center">
                           <svg className="w-10 h-10 text-white/80" fill="currentColor" viewBox="0 0 24 24">
                             <path d="M8 5v14l11-7z" />
                           </svg>
+                          <span className="absolute top-1 left-1 bg-black/70 text-white text-xs px-1 rounded">VIDEO</span>
                         </div>
                       ) : (
-                        // eslint-disable-next-line @next/next/no-img-element
-                        <img
+                        <LazyImg
                           src={item.blobUrl}
                           alt={item.caption || item.fileName}
-                          className="w-full aspect-square object-cover"
-                          loading="lazy"
+                          className="w-full h-full object-cover"
                         />
-                      )}
-                      {isVideo(item) && (
-                        <div className="absolute top-1 left-1 bg-black/70 text-white text-xs px-1 rounded">
-                          VIDEO
-                        </div>
                       )}
                     </div>
                     {item.caption && (
@@ -430,12 +474,22 @@ function AlbumDashboardContent() {
                         className="win-button text-xs text-red-600 ml-1 flex-shrink-0"
                         title={t("album.delete")}
                       >
-                        
+                        🗑️
                       </button>
                     </div>
                   </div>
                 ))}
               </div>
+              {items.length > galleryPage * PAGE_SIZE && (
+                <div className="flex justify-center mt-3">
+                  <button
+                    onClick={() => setGalleryPage((p) => p + 1)}
+                    className="win-button text-sm px-6"
+                  >
+                    {t("album.load_more") ?? "Load more"} ({items.length - galleryPage * PAGE_SIZE} remaining)
+                  </button>
+                </div>
+              )}
             </WindowBox>
           )}
         </>
