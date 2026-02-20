@@ -24,12 +24,13 @@ function AlbumDashboardContent() {
   const [loading, setLoading] = useState(true);
   const [uploading, setUploading] = useState(false);
   const [uploadProgress, setUploadProgress] = useState(0);
+  const [uploadCurrent, setUploadCurrent] = useState(0);
+  const [uploadTotal, setUploadTotal] = useState(0);
   const [message, setMessage] = useState("");
   const [error, setError] = useState("");
   const [caption, setCaption] = useState("");
-  const [selectedFile, setSelectedFile] = useState<File | null>(null);
-  const [preview, setPreview] = useState<string | null>(null);
-  const [previewType, setPreviewType] = useState<"image" | "video">("image");
+  const [selectedFiles, setSelectedFiles] = useState<File[]>([]);
+  const [previews, setPreviews] = useState<{ url: string; type: "image" | "video" }[]>([]);
   const [activeIndex, setActiveIndex] = useState<number | null>(null);
   const [configured, setConfigured] = useState<boolean | null>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
@@ -57,14 +58,19 @@ function AlbumDashboardContent() {
   };
 
   const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
-    const file = e.target.files?.[0] || null;
-    setSelectedFile(file);
-    if (file) {
-      const type = file.type.startsWith("video/") ? "video" : "image";
-      setPreviewType(type);
-      setPreview(URL.createObjectURL(file));
+    const files = e.target.files ? Array.from(e.target.files) : [];
+    setSelectedFiles(files);
+    // Revoke old preview URLs
+    previews.forEach((p) => URL.revokeObjectURL(p.url));
+    if (files.length > 0) {
+      setPreviews(
+        files.map((file) => ({
+          url: URL.createObjectURL(file),
+          type: file.type.startsWith("video/") ? "video" as const : "image" as const,
+        }))
+      );
     } else {
-      setPreview(null);
+      setPreviews([]);
     }
   };
 
@@ -97,64 +103,82 @@ function AlbumDashboardContent() {
   const handleUpload = async (e: React.FormEvent) => {
     e.preventDefault();
     setMessage(""); setError("");
-    if (!selectedFile) { setError(t("album.no_file")); return; }
+    if (selectedFiles.length === 0) { setError(t("album.no_file")); return; }
     setUploading(true);
     setUploadProgress(0);
+    setUploadCurrent(0);
+    setUploadTotal(selectedFiles.length);
 
-    const useDirect =
-      selectedFile.type.startsWith("video/") ||
-      selectedFile.size > DIRECT_UPLOAD_THRESHOLD;
+    let successCount = 0;
 
     try {
-      if (useDirect) {
-        // Step 1: get a write SAS URL from the server
-        const sasRes = await fetch(
-          `/api/album/sas?fileName=${encodeURIComponent(selectedFile.name)}&mimeType=${encodeURIComponent(selectedFile.type)}`
-        );
-        if (!sasRes.ok) {
-          const d = await sasRes.json();
-          throw new Error(d.error || "Failed to get upload URL");
-        }
-        const { uploadUrl, blobName } = await sasRes.json();
+      for (let i = 0; i < selectedFiles.length; i++) {
+        const file = selectedFiles[i];
+        setUploadCurrent(i + 1);
 
-        // Step 2: PUT directly to Azure (no Vercel body limit)
-        await uploadDirectToAzure(uploadUrl, selectedFile, selectedFile.type);
+        const useDirect =
+          file.type.startsWith("video/") ||
+          file.size > DIRECT_UPLOAD_THRESHOLD;
 
-        // Step 3: register the uploaded blob in the DB
-        const regRes = await fetch("/api/album", {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({
-            blobName,
-            fileName: selectedFile.name,
-            mimeType: selectedFile.type,
-            caption: caption.trim() || undefined,
-          }),
-        });
-        if (!regRes.ok) {
-          const d = await regRes.json();
-          throw new Error(d.error || "Failed to register upload");
+        if (useDirect) {
+          // Step 1: get a write SAS URL from the server
+          const sasRes = await fetch(
+            `/api/album/sas?fileName=${encodeURIComponent(file.name)}&mimeType=${encodeURIComponent(file.type)}`
+          );
+          if (!sasRes.ok) {
+            const d = await sasRes.json();
+            throw new Error(d.error || "Failed to get upload URL");
+          }
+          const { uploadUrl, blobName } = await sasRes.json();
+
+          // Step 2: PUT directly to Azure (no Vercel body limit)
+          await uploadDirectToAzure(uploadUrl, file, file.type);
+
+          // Step 3: register the uploaded blob in the DB
+          const regRes = await fetch("/api/album", {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({
+              blobName,
+              fileName: file.name,
+              mimeType: file.type,
+              caption: i === 0 && caption.trim() ? caption.trim() : undefined,
+            }),
+          });
+          if (!regRes.ok) {
+            const d = await regRes.json();
+            throw new Error(d.error || "Failed to register upload");
+          }
+        } else {
+          // Small image — proxy through Vercel (simpler, no extra roundtrip)
+          const formData = new FormData();
+          formData.append("file", file);
+          if (i === 0 && caption.trim()) formData.append("caption", caption.trim());
+          const res = await fetch("/api/album", { method: "POST", body: formData });
+          if (!res.ok) {
+            const d = await res.json();
+            throw new Error(d.error || t("common.error"));
+          }
         }
-      } else {
-        // Small image — proxy through Vercel (simpler, no extra roundtrip)
-        const formData = new FormData();
-        formData.append("file", selectedFile);
-        if (caption.trim()) formData.append("caption", caption.trim());
-        const res = await fetch("/api/album", { method: "POST", body: formData });
-        if (!res.ok) {
-          const d = await res.json();
-          throw new Error(d.error || t("common.error"));
-        }
+
+        successCount++;
       }
 
-      setMessage(t("album.upload_success"));
-      setSelectedFile(null); setCaption(""); setPreview(null);
+      if (successCount > 1) {
+        setMessage(t("album.upload_batch_success").replace("{count}", String(successCount)));
+      } else {
+        setMessage(t("album.upload_success"));
+      }
+      setSelectedFiles([]); setCaption("");
+      previews.forEach((p) => URL.revokeObjectURL(p.url));
+      setPreviews([]);
       if (fileInputRef.current) fileInputRef.current.value = "";
       await fetchItems();
     } catch (err) {
       setError(err instanceof Error ? err.message : t("common.error"));
     } finally {
       setUploading(false); setUploadProgress(0);
+      setUploadCurrent(0); setUploadTotal(0);
     }
   };
 
@@ -247,6 +271,7 @@ function AlbumDashboardContent() {
                   ref={fileInputRef}
                   type="file"
                   accept="image/*,video/*"
+                  multiple
                   onChange={handleFileChange}
                   className="win-input w-full"
                   required
@@ -254,20 +279,31 @@ function AlbumDashboardContent() {
                 <p className="text-xs text-muted-foreground mt-1">
                   {t("album.file_hint_media")}
                 </p>
+                {selectedFiles.length > 1 && (
+                  <p className="text-xs text-primary mt-1 font-medium">
+                    {t("album.files_selected").replace("{count}", String(selectedFiles.length))}
+                  </p>
+                )}
               </div>
 
-              {preview && (
+              {previews.length > 0 && (
                 <div className="border-2 border-border">
-                  {previewType === "video" ? (
-                    <video
-                      src={preview}
-                      controls
-                      className="max-h-48 w-full bg-black"
-                    />
-                  ) : (
-                    // eslint-disable-next-line @next/next/no-img-element
-                    <img src={preview} alt="Preview" className="max-h-48 w-full object-contain bg-secondary" />
-                  )}
+                  <div className={`grid gap-1 p-1 ${previews.length === 1 ? "" : "grid-cols-3 sm:grid-cols-4"}`}>
+                    {previews.map((p, idx) => (
+                      <div key={idx} className="relative">
+                        {p.type === "video" ? (
+                          <video
+                            src={p.url}
+                            controls
+                            className={previews.length === 1 ? "max-h-48 w-full bg-black" : "w-full aspect-square object-cover bg-black"}
+                          />
+                        ) : (
+                          // eslint-disable-next-line @next/next/no-img-element
+                          <img src={p.url} alt="Preview" className={previews.length === 1 ? "max-h-48 w-full object-contain bg-secondary" : "w-full aspect-square object-cover bg-secondary"} />
+                        )}
+                      </div>
+                    ))}
+                  </div>
                 </div>
               )}
 
@@ -295,14 +331,18 @@ function AlbumDashboardContent() {
                     />
                   </div>
                   <p className="text-xs text-muted-foreground text-center">
-                    {uploadProgress > 0 ? `${uploadProgress}%` : t("album.uploading")}
+                    {uploadTotal > 1
+                      ? t("album.upload_batch_progress")
+                          .replace("{current}", String(uploadCurrent))
+                          .replace("{total}", String(uploadTotal))
+                      : uploadProgress > 0 ? `${uploadProgress}%` : t("album.uploading")}
                   </p>
                 </div>
               )}
 
               <button
                 type="submit"
-                disabled={uploading || !selectedFile}
+                disabled={uploading || selectedFiles.length === 0}
                 className="win-button w-full"
               >
                 {uploading ? t("album.uploading") : t("album.upload_btn")}
