@@ -32,7 +32,11 @@ export async function GET(request: NextRequest) {
       blobUrl: generateSasUrl(img.blobName),
     }));
 
-    return NextResponse.json(signed);
+    return NextResponse.json(signed, {
+      headers: {
+        "Cache-Control": "public, max-age=60, stale-while-revalidate=300",
+      },
+    });
   } catch (error) {
     console.error("Album GET error:", error);
     return NextResponse.json(
