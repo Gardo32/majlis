@@ -31,7 +31,7 @@ export async function GET(request: NextRequest) {
     const safeName = fileName.replace(/[^a-zA-Z0-9._-]/g, "_");
     const blobName = `album/${Date.now()}-${safeName}`;
 
-    const uploadUrl = generateUploadSasUrl(blobName);
+    const uploadUrl = generateUploadSasUrl(blobName, mimeType);
 
     // The final public (SAS-signed for reading) URL will be generated at GET time.
     // Return the blob name and upload URL to the client.

@@ -26,6 +26,7 @@ function AlbumDashboardContent() {
   const [uploadProgress, setUploadProgress] = useState(0);
   const [uploadCurrent, setUploadCurrent] = useState(0);
   const [uploadTotal, setUploadTotal] = useState(0);
+  const [uploadPhase, setUploadPhase] = useState<"preparing" | "uploading" | "registering" | "">("");
   const [message, setMessage] = useState("");
   const [error, setError] = useState("");
   const [caption, setCaption] = useState("");
@@ -35,6 +36,10 @@ function AlbumDashboardContent() {
   const [configured, setConfigured] = useState<boolean | null>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
   const videoRef = useRef<HTMLVideoElement>(null);
+  const xhrRef = useRef<XMLHttpRequest | null>(null);
+
+  // Abort any in-flight XHR on unmount
+  useEffect(() => () => { xhrRef.current?.abort(); }, []);
 
   useEffect(() => {
     fetchStatus();
@@ -82,19 +87,29 @@ function AlbumDashboardContent() {
   ): Promise<void> =>
     new Promise((resolve, reject) => {
       const xhr = new XMLHttpRequest();
+      xhrRef.current = xhr;
       xhr.open("PUT", uploadUrl, true);
       xhr.setRequestHeader("x-ms-blob-type", "BlockBlob");
       xhr.setRequestHeader("Content-Type", mimeType);
       xhr.upload.onprogress = (e) => {
         if (e.lengthComputable) {
+          setUploadPhase("uploading");
           setUploadProgress(Math.round((e.loaded / e.total) * 100));
         }
       };
       xhr.onload = () => {
+        xhrRef.current = null;
         if (xhr.status >= 200 && xhr.status < 300) resolve();
-        else reject(new Error(`Azure PUT failed: ${xhr.status} ${xhr.statusText}`));
+        else reject(new Error(`Azure upload failed (${xhr.status}). If this is a CORS error, make sure the storage account has CORS rules allowing PUT from this origin.`));
       };
-      xhr.onerror = () => reject(new Error("Network error during direct upload"));
+      xhr.onerror = () => {
+        xhrRef.current = null;
+        reject(new Error("Network error during direct upload. This is usually a CORS misconfiguration on the Azure Storage account — add a CORS rule allowing PUT from this site."));
+      };
+      xhr.onabort = () => {
+        xhrRef.current = null;
+        reject(new Error("Upload cancelled"));
+      };
       xhr.send(file);
     });
 
@@ -108,6 +123,7 @@ function AlbumDashboardContent() {
     setUploadProgress(0);
     setUploadCurrent(0);
     setUploadTotal(selectedFiles.length);
+    setUploadPhase("");
 
     let successCount = 0;
 
@@ -115,6 +131,8 @@ function AlbumDashboardContent() {
       for (let i = 0; i < selectedFiles.length; i++) {
         const file = selectedFiles[i];
         setUploadCurrent(i + 1);
+        setUploadProgress(0);
+        setUploadPhase("");
 
         const useDirect =
           file.type.startsWith("video/") ||
@@ -122,6 +140,7 @@ function AlbumDashboardContent() {
 
         if (useDirect) {
           // Step 1: get a write SAS URL from the server
+          setUploadPhase("preparing");
           const sasRes = await fetch(
             `/api/album/sas?fileName=${encodeURIComponent(file.name)}&mimeType=${encodeURIComponent(file.type)}`
           );
@@ -132,9 +151,11 @@ function AlbumDashboardContent() {
           const { uploadUrl, blobName } = await sasRes.json();
 
           // Step 2: PUT directly to Azure (no Vercel body limit)
+          setUploadPhase("uploading");
           await uploadDirectToAzure(uploadUrl, file, file.type);
 
           // Step 3: register the uploaded blob in the DB
+          setUploadPhase("registering");
           const regRes = await fetch("/api/album", {
             method: "POST",
             headers: { "Content-Type": "application/json" },
@@ -151,6 +172,7 @@ function AlbumDashboardContent() {
           }
         } else {
           // Small image — proxy through Vercel (simpler, no extra roundtrip)
+          setUploadPhase("uploading");
           const formData = new FormData();
           formData.append("file", file);
           if (i === 0 && caption.trim()) formData.append("caption", caption.trim());
@@ -159,6 +181,7 @@ function AlbumDashboardContent() {
             const d = await res.json();
             throw new Error(d.error || t("common.error"));
           }
+          setUploadProgress(100);
         }
 
         successCount++;
@@ -179,6 +202,7 @@ function AlbumDashboardContent() {
     } finally {
       setUploading(false); setUploadProgress(0);
       setUploadCurrent(0); setUploadTotal(0);
+      setUploadPhase("");
     }
   };
 
@@ -323,19 +347,26 @@ function AlbumDashboardContent() {
 
               {uploading && (
                 <div className="space-y-1">
-                  <div className="w-full bg-secondary border border-border h-4 overflow-hidden">
-                    <div
-                      className="h-full bg-primary transition-all duration-200"
-                      style={{ width: uploadProgress > 0 ? `${uploadProgress}%` : "100%",
-                               animation: uploadProgress === 0 ? "pulse 1.5s infinite" : "none" }}
-                    />
+                  <div className="w-full bg-secondary border border-border h-4 overflow-hidden relative">
+                    {/* Indeterminate stripe when preparing or registering (no byte progress) */}
+                    {(uploadPhase === "preparing" || uploadPhase === "registering" || (uploadPhase === "uploading" && uploadProgress === 0)) ? (
+                      <div className="absolute inset-0 bg-primary opacity-70 animate-pulse" />
+                    ) : (
+                      <div
+                        className="h-full bg-primary transition-all duration-200"
+                        style={{ width: `${uploadProgress}%` }}
+                      />
+                    )}
                   </div>
                   <p className="text-xs text-muted-foreground text-center">
-                    {uploadTotal > 1
-                      ? t("album.upload_batch_progress")
-                          .replace("{current}", String(uploadCurrent))
-                          .replace("{total}", String(uploadTotal))
-                      : uploadProgress > 0 ? `${uploadProgress}%` : t("album.uploading")}
+                    {uploadPhase === "preparing" && `${uploadTotal > 1 ? `(${uploadCurrent}/${uploadTotal}) ` : ""}Preparing upload…`}
+                    {uploadPhase === "registering" && `${uploadTotal > 1 ? `(${uploadCurrent}/${uploadTotal}) ` : ""}Saving…`}
+                    {uploadPhase === "uploading" && (
+                      uploadTotal > 1
+                        ? `(${uploadCurrent}/${uploadTotal}) ${uploadProgress > 0 ? `${uploadProgress}%` : "Uploading…"}`
+                        : uploadProgress > 0 ? `${uploadProgress}%` : "Uploading…"
+                    )}
+                    {uploadPhase === "" && t("album.uploading")}
                   </p>
                 </div>
               )}

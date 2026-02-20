@@ -68,10 +68,11 @@ export function getBlobUrl(blobName: string): string {
  * The client can PUT bytes straight to Azure, bypassing Vercel's body limit.
  * Expires in 2 hours.
  */
-export function generateUploadSasUrl(blobName: string): string {
+export function generateUploadSasUrl(blobName: string, contentType?: string): string {
   const credential = new StorageSharedKeyCredential(ACCOUNT_NAME, ACCOUNT_KEY);
   const startsOn = new Date();
-  const expiresOn = new Date(startsOn.getTime() + 2 * 60 * 60 * 1000); // 2 hours
+  // Give large video uploads up to 4 hours to complete
+  const expiresOn = new Date(startsOn.getTime() + 4 * 60 * 60 * 1000);
 
   const sasParams = generateBlobSASQueryParameters(
     {
@@ -81,6 +82,8 @@ export function generateUploadSasUrl(blobName: string): string {
       permissions: BlobSASPermissions.parse("cw"),
       startsOn,
       expiresOn,
+      // Lock the SAS to the expected content-type so Azure enforces it
+      contentType: contentType || undefined,
     },
     credential
   );
